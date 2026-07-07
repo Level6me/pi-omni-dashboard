@@ -131,6 +131,15 @@ def get_cpu_freq():
     
     return 0
 
+def check_ping(host):
+    try:
+        start = time.time()
+        res = subprocess.run(["ping", "-c", "1", "-W", "1", host], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if res.returncode == 0:
+            return int((time.time() - start) * 1000)
+        return -1
+    except: return -1
+
 def get_uptime_desc():
     # 极速解析 /proc/uptime 替代 uptime -p shell 进程开销
     try:
