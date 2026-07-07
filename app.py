@@ -1,6 +1,7 @@
 import psutil, os, subprocess, time, socket, threading, re, json, urllib.request, shutil
 from flask import Flask, render_template, jsonify, request, Response
 from werkzeug.utils import secure_filename
+from concurrent.futures import ThreadPoolExecutor
 
 app = Flask(__name__)
 
@@ -17,6 +18,9 @@ psutil.cpu_percent(percpu=True)
 CONFIG_FILE = '/boot/firmware/config.txt' if os.path.exists('/boot/firmware/config.txt') else '/boot/config.txt'
 WEBHOOK_FILE = os.path.expanduser('~/pi_omni/webhook_config.json')
 FILE_ROOT = os.path.expanduser('~')
+
+# 用于并发测试网络延迟的线程池
+executor = ThreadPoolExecutor(max_workers=4)
 
 def run_cmd(cmd):
     try: return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode().strip()
@@ -38,6 +42,58 @@ def save_webhook_url(url):
         return True
     except: return False
 
+def get_cpu_temp():
+    # 1. 尝试 vcgencmd (树莓派平台专有)
+    try:
+        temp_str = run_cmd("vcgencmd measure_temp")
+        if temp_str:
+            return temp_str.replace("temp=", "").replace("'C", "")
+    except: pass
+    
+    # 2. 尝试 sysfs thermal (通用 Linux 平台)
+    try:
+        if os.path.exists("/sys/class/thermal/thermal_zone0/temp"):
+            with open("/sys/class/thermal/thermal_zone0/temp", "r") as f:
+                temp_raw = f.read().strip()
+                return str(round(float(temp_raw) / 1000.0, 1))
+    except: pass
+    
+    # 3. 尝试 psutil 跨平台接口
+    try:
+        temps = psutil.sensors_temperatures()
+        if temps:
+            for name, entries in temps.items():
+                if entries:
+                    return str(round(entries[0].current, 1))
+    except: pass
+    
+    return "N/A"
+
+def get_cpu_freq():
+    # 1. 尝试 vcgencmd (树莓派平台专有)
+    try:
+        clock_str = run_cmd("vcgencmd measure_clock arm")
+        if clock_str and "=" in clock_str:
+            return int(int(clock_str.split("=")[1]) / 1000000)
+    except: pass
+    
+    # 2. 尝试 sysfs cpufreq (通用 Linux 平台)
+    try:
+        if os.path.exists("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"):
+            with open("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "r") as f:
+                freq_raw = f.read().strip()
+                return int(int(freq_raw) / 1000)
+    except: pass
+    
+    # 3. 尝试 psutil.cpu_freq()
+    try:
+        freq = psutil.cpu_freq()
+        if freq:
+            return int(freq.current)
+    except: pass
+    
+    return 0
+
 def check_and_send_alert(cpu_temp, disk_p):
     global last_alert_time
     webhook_url = get_webhook_url()
@@ -45,7 +101,7 @@ def check_and_send_alert(cpu_temp, disk_p):
         return
     
     now = time.time()
-    if now - last_alert_time < 3600: # 1小时防刷冷热时间
+    if now - last_alert_time < 3600: # 1小时防刷冷静期
         return
         
     msg_parts = []
@@ -416,17 +472,24 @@ def get_data():
 
     gw = get_gateway()
     
-    cpu_temp = run_cmd("vcgencmd measure_temp").replace("temp=","").replace("'C","")
+    # 使用系统多重回退算法获取 CPU 温度和频率 (多系统兼容)
+    cpu_temp = get_cpu_temp()
+    cpu_freq = get_cpu_freq()
     disk_p = psutil.disk_usage('/').percent
     
     # 资源阈值警报检测与发送
     check_and_send_alert(cpu_temp, disk_p)
     
-    pings = {"gateway": check_ping(gw), "baidu": check_ping("baidu.com"), "github": check_ping("github.com"), "google": check_ping("google.com")}
+    # 优化项：通过多线程并发池同时发起 4 个 Ping 延迟测试，防止多主机顺序测试引发网络延迟和 API 卡顿
+    hosts = ["gateway", "baidu", "github", "google"]
+    dest_ips = [gw, "baidu.com", "github.com", "google.com"]
+    futures = {host: executor.submit(check_ping, ip) for host, ip in zip(hosts, dest_ips)}
+    pings = {host: futures[host].result() for host in hosts}
+    
     ssd_temp = get_ssd_temp()
 
     return jsonify({
-        "cpu": {"p": psutil.cpu_percent(), "cores": psutil.cpu_percent(percpu=True), "temp": cpu_temp, "freq": int(int(run_cmd("vcgencmd measure_clock arm").split("=")[1])/1000000)},
+        "cpu": {"p": psutil.cpu_percent(), "cores": psutil.cpu_percent(percpu=True), "temp": cpu_temp, "freq": cpu_freq},
         "mem": {"p": mem_p, "history": mem_history},
         "net": {"up": up, "down": down, "ip": run_cmd("hostname -I").split()[0] if run_cmd("hostname -I") else "N/A", "pings": pings},
         "wifi": get_wifi(),
@@ -471,7 +534,6 @@ def kill_process():
 @app.route('/api/wifi/scan')
 def wifi_scan():
     try:
-        # 尝试 nmcli
         res = subprocess.run(['sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'dev', 'wifi', 'list'], capture_output=True, text=True, timeout=5)
         networks = []
         seen = set()
@@ -487,7 +549,6 @@ def wifi_scan():
                         seen.add(ssid)
                         networks.append({"ssid": ssid, "signal": signal, "security": security})
         else:
-            # 回退到 iwlist wlan0 scan
             raw = run_cmd("sudo iwlist wlan0 scan | grep -E 'ESSID|Signal level'")
             essids = re.findall(r'ESSID:"([^"]*)"', raw)
             signals = re.findall(r'Quality=\d+/\d+\s+Signal level=(-?\d+)\s+dBm', raw) or re.findall(r'Signal level=(\d+)/100', raw)
@@ -520,7 +581,6 @@ def wifi_connect():
             else:
                 return jsonify({"success": False, "msg": res.stderr.strip()})
         else:
-            # 回退：向 wpa_supplicant 写入配置
             wpa_conf = f'\nnetwork={{\n    ssid="{ssid}"\n    psk="{password}"\n}}\n'
             tmp_path = "/tmp/wpa_supplicant_add"
             with open(tmp_path, 'w') as f:
@@ -652,7 +712,6 @@ def tools(name):
 
 @app.route('/api/service_log/<name>')
 def s_log(name):
-    # 防御路径穿越与命令注入
     if re.match(r'^[a-zA-Z0-9.-]+$', name):
         return jsonify({"log": run_cmd(f"systemctl status {name} -l --no-pager | head -n 30")})
     return jsonify({"log": "Invalid service name"})
@@ -753,7 +812,6 @@ def cron_delete():
                     count += 1
         if target_line_idx != -1:
             lines.pop(target_line_idx)
-            # 如果上一行是注释（任务名），也一并移除
             if target_line_idx > 0 and lines[target_line_idx-1].strip().startswith('#'):
                 lines.pop(target_line_idx-1)
             new_cron = '\n'.join(lines) + '\n'

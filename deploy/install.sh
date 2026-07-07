@@ -1,5 +1,5 @@
 #!/bin/bash
-# Install script for Pi Omni Dashboard
+# Install script for Pi Omni Dashboard (Venv + Systemd)
 
 ACTUAL_USER=${SUDO_USER:-$(whoami)}
 ACTUAL_HOME=$(eval echo ~$ACTUAL_USER)
@@ -18,13 +18,21 @@ mkdir -p "$DEPLOY_DIR/static"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROJECT_DIR="$( dirname "$SCRIPT_DIR" )"
 
-echo ">>> 复制文件至部署目录..."
+echo ">>> 复制项目文件至部署目录..."
 cp "$PROJECT_DIR/app.py" "$DEPLOY_DIR/app.py"
 cp "$PROJECT_DIR/templates/index.html" "$DEPLOY_DIR/templates/index.html"
 
-# 安装依赖
-echo ">>> 正在安装 Python 依赖项..."
-sudo pip3 install -r "$PROJECT_DIR/requirements.txt" || pip3 install -r "$PROJECT_DIR/requirements.txt" --break-system-packages 2>/dev/null || true
+# 1. 部署架构优化：创建 Python 虚拟环境 (venv)
+echo ">>> 正在创建 Python 虚拟环境..."
+python3 -m venv "$DEPLOY_DIR/venv"
+
+echo ">>> 正在虚拟环境中安装依赖包..."
+# 提升 pip 自身版本并安装 requirements.txt 内包
+"$DEPLOY_DIR/venv/bin/pip" install --upgrade pip
+"$DEPLOY_DIR/venv/bin/pip" install -r "$PROJECT_DIR/requirements.txt"
+
+# 确保部署目录的所有者正确
+sudo chown -R "$ACTUAL_USER:$ACTUAL_GROUP" "$DEPLOY_DIR"
 
 echo ">>> 动态生成 systemd 服务配置文件..."
 sed -e "s|{{USER}}|$ACTUAL_USER|g" \

@@ -7,7 +7,7 @@ Type=simple
 User={{USER}}
 Group={{GROUP}}
 WorkingDirectory={{DIR}}
-ExecStart=/usr/bin/python3 {{DIR}}/app.py
+ExecStart={{DIR}}/venv/bin/python {{DIR}}/app.py
 Restart=always
 RestartSec=5
 
