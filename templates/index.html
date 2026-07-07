@@ -72,16 +72,16 @@
         
         .log-box { background: var(--bg); padding: 14px; border-radius: 12px; font-family: monospace; font-size: 11px; white-space: pre-wrap; margin-top: 15px; overflow-y: auto; flex-grow: 1; }
         .btn { padding: 14px; border-radius: 14px; border: none; font-weight: 600; font-size: 16px; cursor: pointer; width: 100%; margin-top: 15px; }
-        .cron-card { display: flex; flex-direction: column; padding: 16px; min-height: 140px; }
-        .cron-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
-        .cron-card-icon { font-size: 24px; }
-        .cron-card-badge { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: rgba(0,122,255,0.1); color: var(--accent); font-weight: 700; text-transform: uppercase; }
-        .cron-card-badge.timer { background: rgba(52,199,89,0.1); color: var(--success); }
-        .cron-card-name { font-weight: 700; font-size: 15px; margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .cron-card-time { font-size: 11px; color: var(--text-sec); margin-bottom: 8px; font-weight: 500; }
-        .cron-card-cmd { font-family: monospace; font-size: 9px; color: var(--text-sec); background: rgba(128,128,128,0.08); padding: 5px 8px; border-radius: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-bottom: 10px; }
-        .cron-card-actions { display: flex; justify-content: space-between; align-items: center; gap: 8px; border-top: 0.5px solid rgba(128,128,128,0.1); padding-top: 8px; margin-top: auto; }
-        .cron-card-btn { border: none; background: none; font-size: 16px; cursor: pointer; padding: 4px; border-radius: 6px; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
+        .cron-item { padding: 16px 0; border-bottom: 0.5px solid rgba(128,128,128,0.15); display: flex; align-items: center; gap: 14px; }
+        .cron-item:last-child { border-bottom: none; }
+        .cron-icon { font-size: 22px; width: 36px; height: 36px; border-radius: 50%; background: rgba(128,128,128,0.08); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .cron-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+        .cron-meta { display: flex; align-items: center; gap: 8px; }
+        .cron-name { font-weight: 700; font-size: 15px; }
+        .cron-time { font-size: 11px; color: var(--text-sec); font-weight: 500; }
+        .cron-cmd { font-family: monospace; font-size: 9px; color: var(--text-sec); background: rgba(128,128,128,0.08); padding: 3px 6px; border-radius: 4px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: min(300px, 50vw); }
+        .cron-type-badge { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: rgba(0,122,255,0.1); color: var(--accent); font-weight: 700; text-transform: uppercase; }
+        .cron-type-badge.timer { background: rgba(52,199,89,0.1); color: var(--success); }
         .ctrl-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
         .ctrl-card-title { font-weight: 600; font-size: 14px; margin-top: 8px; color: var(--text); }
         /* 新增定时任务弹窗美化 */
@@ -206,14 +206,14 @@
     </div>
 
     <!-- 定时任务页面 -->
-    <div id="p-cron" class="page">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div class="page" id="p-cron">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
             <div class="subtitle" style="margin: 30px 0 10px 10px;">🕐 Crontab 定时任务</div>
             <button onclick="showAddCronModal()" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕ 新增</button>
         </div>
-        <div class="grid" id="cron-list-grid"><div style="grid-column: span 2; padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
+        <div class="card" id="cron-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
         <div class="subtitle" style="margin: 30px 0 10px 10px;">⏰ Systemd Timer</div>
-        <div class="grid" id="timer-list-grid"><div style="grid-column: span 2; padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
+        <div class="card" id="timer-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
     </div>
 
     <!-- 控制中心页面 -->
@@ -348,21 +348,23 @@
             // Cron jobs
             let cH = '';
             if (d.cron.length === 0) {
-                cH = '<div style="grid-column: span 2; padding:20px;text-align:center;color:#8e8e93">无 Crontab 任务</div>';
+                cH = '<div style="padding:20px;text-align:center;color:#8e8e93">无 Crontab 任务</div>';
             } else {
                 d.cron.forEach(j => {
                     let icon = j.name.includes('gold') ? '🥇' : j.name.includes('oil') ? '⛽' : j.name.includes('daily') || j.name.includes('monitor') ? '📊' : j.name.includes('xiaomi') ? '📈' : j.name.includes('memory') ? '🧠' : j.name.includes('self-improvement') || j.name.includes('extract') ? '🎯' : '📋';
-                    cH += `<div class="card cron-card">
-                        <div class="cron-card-header">
-                            <span class="cron-card-icon">${icon}</span>
-                            <span class="cron-card-badge">cron</span>
+                    cH += `<div class="cron-item">
+                        <div class="cron-icon">${icon}</div>
+                        <div class="cron-info">
+                            <div class="cron-meta">
+                                <span class="cron-name">${j.name || '未命名任务'}</span>
+                                <span class="cron-type-badge">cron</span>
+                            </div>
+                            <div class="cron-time">${j.time_desc}</div>
+                            <div style="display:flex;"><span class="cron-cmd" title="${j.command}">${j.command}</span></div>
                         </div>
-                        <div class="cron-card-name">${j.name || '未命名任务'}</div>
-                        <div class="cron-card-time">${j.time_desc}</div>
-                        <div class="cron-card-cmd" title="${j.command}">${j.command}</div>
-                        <div class="cron-card-actions">
-                            <button onclick="runCronOnce('${j.command.replace(/'/g, "\\'")}')" title="立即执行一次" class="cron-card-btn" style="color:var(--success)">▶</button>
-                            <button onclick="deleteCron('${j.id}')" title="删除任务" class="cron-card-btn" style="color:var(--danger)">🗑️</button>
+                        <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+                            <button onclick="runCronOnce('${j.command.replace(/'/g, "\\'")}')" title="立即执行一次" style="border:none; background:none; color:var(--success); font-size:16px; cursor:pointer; padding: 4px;">▶</button>
+                            <button onclick="deleteCron('${j.id}')" title="删除任务" style="border:none; background:none; color:var(--danger); font-size:16px; cursor:pointer; padding: 4px;">🗑️</button>
                             <label class="toggle-switch" style="transform: scale(0.85);">
                                 <input type="checkbox" ${j.enabled?'checked':''} onchange="toggleCron('${j.id}', this.checked)">
                                 <span class="slider"></span>
@@ -371,25 +373,26 @@
                     </div>`;
                 });
             }
-            $('#cron-list-grid').html(cH);
+            $('#cron-list').html(cH);
 
             // Timer jobs
             let tH = '';
             if (d.timers.length === 0) {
-                tH = '<div style="grid-column: span 2; padding:20px;text-align:center;color:#8e8e93">无 Systemd Timer</div>';
+                tH = '<div style="padding:20px;text-align:center;color:#8e8e93">无 Systemd Timer</div>';
             } else {
                 d.timers.forEach(j => {
                     let icon = j.name.includes('camera') ? '📷' : j.name.includes('backup') ? '💾' : '⏰';
-                    tH += `<div class="card cron-card">
-                        <div class="cron-card-header">
-                            <span class="cron-card-icon">${icon}</span>
-                            <span class="cron-card-badge timer">timer</span>
+                    tH += `<div class="cron-item">
+                        <div class="cron-icon">${icon}</div>
+                        <div class="cron-info">
+                            <div class="cron-meta">
+                                <span class="cron-name">${j.name}</span>
+                                <span class="cron-type-badge timer">timer</span>
+                            </div>
+                            <div class="cron-time">${j.time_desc}</div>
+                            <div style="display:flex;"><span class="cron-cmd" title="${j.command}">${j.command}</span></div>
                         </div>
-                        <div class="cron-card-name">${j.name}</div>
-                        <div class="cron-card-time">${j.time_desc}</div>
-                        <div class="cron-card-cmd" title="${j.command}">${j.command}</div>
-                        <div class="cron-card-actions">
-                            <div></div>
+                        <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
                             <label class="toggle-switch" style="transform: scale(0.85);">
                                 <input type="checkbox" ${j.enabled?'checked':''} onchange="toggleCron('${j.id}', this.checked)">
                                 <span class="slider"></span>
@@ -398,7 +401,7 @@
                     </div>`;
                 });
             }
-            $('#timer-list-grid').html(tH);
+            $('#timer-list').html(tH);
             cronLoaded = true;
         });
     }
