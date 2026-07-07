@@ -473,7 +473,7 @@
     const memChart = new Chart(memCtx, { 
         type: 'line', 
         data: { labels: Array(30).fill(''), datasets: [{borderColor: '#007aff', borderWidth:2, backgroundColor: memGrad, fill: true, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
-        options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'var(--text-sec)',font:{size:9}}}} 
+        options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'var(--text-sec)',font:{size:9}}}}} 
     });
 
     const netCtx = document.getElementById('netChart').getContext('2d');
@@ -496,7 +496,7 @@
     const cpuChart = new Chart(cpuCtx, { 
         type: 'line', 
         data: { labels: Array(30).fill(''), datasets: [{borderColor: '#ff3b30', borderWidth:2, backgroundColor: cpuGrad, fill: true, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
-        options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{min:0,max:100,grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'var(--text-sec)',font:{size:9}}}} 
+        options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{min:0,max:100,grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'var(--text-sec)',font:{size:9}}}}} 
     });
 
     const diskCtx = document.getElementById('diskChart').getContext('2d');
