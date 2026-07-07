@@ -1,0 +1,517 @@
+import psutil, os, subprocess, time, socket, threading, re, json
+from flask import Flask, render_template, jsonify, request, Response
+
+app = Flask(__name__)
+
+# 全局变量
+last_net = psutil.net_io_counters()
+last_disk = psutil.disk_io_counters()
+last_time = time.time()
+GLOBAL_DOCKER_CACHE = []
+mem_history = []
+
+psutil.cpu_percent(percpu=True)
+
+CONFIG_FILE = '/boot/firmware/config.txt' if os.path.exists('/boot/firmware/config.txt') else '/boot/config.txt'
+
+def run_cmd(cmd):
+    try: return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode().strip()
+    except: return ""
+
+# --- 定时任务管理 ---
+
+def parse_cron_desc(line):
+    """解析 cron 表达式为中文描述"""
+    parts = line.split()
+    if len(parts) < 6:
+        return line
+    minute, hour, dom, month, dow, cmd = parts[0], parts[1], parts[2], parts[3], parts[4], ' '.join(parts[5:])
+    
+    # 构建时间描述
+    time_str = ""
+    if minute == '*' and hour == '*':
+        time_str = "每分钟"
+    elif hour == '*':
+        time_str = f"每小时第 {minute} 分"
+    elif minute == '*':
+        time_str = f"每小时"
+    else:
+        time_str = f"{int(hour):02d}:{int(minute):02d}"
+    
+    # 频率描述
+    freq = ""
+    if dow != '*':
+        dow_map = {'0':'周日','1':'周一','2':'周二','3':'周三','4':'周四','5':'周五','6':'周六'}
+        if '-' in dow:
+            start, end = dow.split('-')
+            freq = f" 每周 {dow_map.get(start, start)}~{dow_map.get(end, end)}"
+        else:
+            freq = f" 每周{''.join([dow_map.get(d, d) for d in dow.split(',')])}"
+    elif dom != '*':
+        freq = f" 每月 {dom} 日"
+    elif month != '*':
+        freq = f" 每年 {int(month)} 月"
+    else:
+        freq = " 每天"
+    
+    # 获取命令简称
+    cmd_short = cmd.split('/')[-1].split()[0] if cmd else ""
+    # 提取脚本名或命令
+    cmd_name = ""
+    if '.py' in cmd or '.sh' in cmd:
+        for p in cmd.split():
+            if p.endswith('.py') or p.endswith('.sh'):
+                cmd_name = os.path.basename(p).replace('.py','').replace('.sh','')
+                break
+    if not cmd_name:
+        cmd_name = cmd_short
+    
+    return {"time": time_str + freq, "command": cmd, "name": cmd_name}
+
+def get_user_cron_jobs():
+    """获取用户 crontab 任务"""
+    jobs = []
+    try:
+        raw = run_cmd("sudo crontab -l 2>/dev/null")
+        for line in raw.split('\n'):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            parts = line.split()
+            if len(parts) >= 6 and parts[0].replace('*','').replace(',','').replace('-','').replace('/','').isdigit():
+                desc = parse_cron_desc(line)
+                jobs.append({
+                    "id": f"cron_{len(jobs)}",
+                    "type": "cron",
+                    "enabled": True,
+                    "schedule": line,
+                    "time_desc": desc['time'],
+                    "name": desc['name'],
+                    "command": desc['command']
+                })
+    except:
+        pass
+    return jobs
+
+def get_systemd_timers():
+    """获取 systemd timer 任务"""
+    timers = []
+    try:
+        raw = run_cmd("systemctl list-timers --all --no-pager --plain 2>/dev/null")
+        for line in raw.split('\n'):
+            if 'NEXT' in line or 'timers listed' in line or not line.strip():
+                continue
+            parts = line.split()
+            if len(parts) >= 8:
+                unit = parts[7] if len(parts) > 7 else ""
+                if unit.endswith('.timer'):
+                    svc = unit.replace('.timer', '.service')
+                    active = run_cmd(f"systemctl is-active {unit}").strip() == "active"
+                    timers.append({
+                        "id": f"timer_{unit}",
+                        "type": "timer",
+                        "enabled": active,
+                        "schedule": f"{parts[0]} ({parts[2]})",
+                        "time_desc": parts[2] if len(parts) > 2 else "",
+                        "name": svc.replace('.service',''),
+                        "command": svc
+                    })
+    except:
+        pass
+    return timers
+
+def toggle_cron_job(job_id, enable):
+    """开启/关闭 cron 任务 (通过注释/取消注释)"""
+    try:
+        raw = run_cmd("sudo crontab -l 2>/dev/null")
+        lines = raw.split('\n')
+        idx = int(job_id.replace('cron_', ''))
+        count = 0
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if line_stripped and not line_stripped.startswith('#'):
+                parts = line_stripped.split()
+                if len(parts) >= 6 and parts[0].replace('*','').replace(',','').replace('-','').replace('/','').isdigit():
+                    if count == idx:
+                        if enable and line_stripped.startswith('#'):
+                            lines[i] = line_stripped[1:].strip()
+                        elif not enable and not line_stripped.startswith('#'):
+                            lines[i] = '# ' + line_stripped
+                        break
+                    count += 1
+        new_cron = '\n'.join(lines) + '\n'
+        proc = subprocess.Popen(['sudo', 'crontab', '-'], stdin=subprocess.PIPE, text=True)
+        proc.communicate(input=new_cron)
+        return True
+    except:
+        return False
+
+def toggle_systemd_timer(unit, enable):
+    """开启/关闭 systemd timer"""
+    try:
+        action = "enable" if enable else "disable"
+        subprocess.run(["sudo", "systemctl", action, "--now", unit], check=True)
+        return True
+    except:
+        return False
+
+# --- 原有功能 ---
+
+def get_ssd_temp():
+    """使用 smartctl 获取 SSD 温度"""
+    try:
+        for dev in ['/dev/sda', '/dev/nvme0n1', '/dev/mmcblk0']:
+            if os.path.exists(dev):
+                smart = run_cmd(f"sudo smartctl -A {dev} 2>/dev/null | grep -i 'Temperature'")
+                if smart:
+                    match = re.search(r'\d+\s+\(Min/Max', smart)
+                    if match:
+                        temp = int(match.group().split()[0])
+                        if temp > 0 and temp < 100:
+                            return temp
+                    match = re.search(r':\s*(\d+)', smart)
+                    if match:
+                        temp = int(match.group(1))
+                        if temp > 0 and temp < 100:
+                            return temp
+        return None
+    except: return None
+
+def docker_worker():
+    global GLOBAL_DOCKER_CACHE
+    while True:
+        try:
+            ps_raw = run_cmd("sudo docker ps -a --format '{{.ID}}||{{.Names}}||{{.Image}}||{{.Status}}'")
+            if not ps_raw:
+                GLOBAL_DOCKER_CACHE = []
+                time.sleep(5)
+                continue
+
+            has_running = False
+            for line in ps_raw.split('\n'):
+                if "Up" in line:
+                    has_running = True
+                    break
+
+            stats_map = {}
+            if has_running:
+                stats_raw = run_cmd("sudo docker stats --no-stream --format '{{.ID}}||{{.CPUPerc}}||{{.MemUsage}}||{{.MemPerc}}'")
+                if stats_raw:
+                    for line in stats_raw.split('\n'):
+                        line = re.sub(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])', '', line)
+                        parts = line.split('||')
+                        if len(parts) >= 4:
+                            mem_val = parts[2].split('/')[0].strip()
+                            stats_map[parts[0]] = {"cpu": parts[1].strip(), "mem": f"{mem_val} ({parts[3].strip()})"}
+
+            new_list = []
+            for line in ps_raw.split('\n'):
+                p = line.split('||')
+                if len(p) >= 4:
+                    cid, name, image, status = p[0], p[1], p[2], p[3]
+                    state = "running" if "Up" in status else "stopped"
+                    uptime = status.replace("Up ", "").split("(")[0].strip()
+                    res = stats_map.get(cid, {"cpu": "--", "mem": "--"}) if state == "running" else {"cpu": "--", "mem": "--"}
+                    new_list.append({"id": cid, "name": name, "image": image, "uptime": uptime, "state": state, "cpu": res['cpu'], "mem": res['mem']})
+            GLOBAL_DOCKER_CACHE = new_list
+        except: pass
+        time.sleep(5)
+
+t = threading.Thread(target=docker_worker, daemon=True)
+t.start()
+
+def update_config(key, value):
+    try:
+        with open(CONFIG_FILE, 'r') as f: lines = f.readlines()
+        new_lines = []
+        found = False
+        for line in lines:
+            if line.strip().startswith(key + "=") or line.strip().startswith("#" + key + "="):
+                new_lines.append(f"{key}={value}\n")
+                found = True
+            else: new_lines.append(line)
+        if not found: new_lines.append(f"{key}={value}\n")
+        
+        # 将新配置写入临时文件，再通过 sudo 移动以解决权限问题
+        tmp_path = "/tmp/piomni_config_tmp"
+        with open(tmp_path, 'w') as f:
+            f.writelines(new_lines)
+        subprocess.run(f"sudo mv {tmp_path} {CONFIG_FILE} && sudo chmod 644 {CONFIG_FILE}", shell=True, check=True)
+    except: pass
+
+def get_wifi():
+    try:
+        raw = run_cmd("iwconfig wlan0 | grep -E 'ESSID|Signal'")
+        ssid = raw.split('ESSID:"')[1].split('"')[0] if 'ESSID' in raw else "N/A"
+        dbm = raw.split('level=')[1].split(' ')[0] if 'level=' in raw else "0"
+        return {"ssid": ssid, "dbm": dbm}
+    except: return {"ssid": "N/A", "dbm": "0"}
+
+def get_gateway():
+    try: return run_cmd("ip route list match 0/0 | awk '{print $3}'") or "1.1.1.1"
+    except: return "1.1.1.1"
+
+def check_ping(host):
+    try:
+        start = time.time()
+        res = subprocess.run(["ping", "-c", "1", "-W", "1", host], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        if res.returncode == 0:
+            return int((time.time() - start) * 1000)
+        return -1
+    except: return -1
+
+def get_mac_vendor_fallback(mac):
+    mac = mac.upper().replace(':', '')
+    vendors = {'B827EB':'Raspberry Pi','DC:A6:32':'Raspberry Pi','E45F01':'Raspberry Pi','D83ADD':'Raspberry Pi','ACBC32':'Apple','F01898':'Apple','BC926B':'Apple','88665A':'Apple','F4F5DB':'Apple','18C086':'Broadcom','00E04C':'Realtek','001A11':'Google','D83ADD':'Espressif','2462AB':'Espressif','30AEA4':'Espressif','84F3EB':'Espressif','50EC50':'Xiaomi','64CC2E':'Xiaomi','F8A45F':'Xiaomi','009E1E':'Xiaomi','F4F5DB':'Huawei','4846F1':'Huawei','00E0FC':'Huawei','14CC20':'TP-Link','50C7BF':'TP-Link','98DEAD':'Tenda','001132':'Synology','00D861':'Ubiquiti'}
+    for k, v in vendors.items():
+        if mac.startswith(k): return v
+    return "Unknown"
+
+def scan_lan():
+    devices = []
+    try:
+        ip = run_cmd("hostname -I").split()[0]
+        subnet = f"{ip.rsplit('.', 1)[0]}.0/24"
+        raw = run_cmd(f"sudo nmap -sn {subnet}")
+        curr_ip = "Unknown"
+        for line in raw.split('\n'):
+            if "Nmap scan report for" in line: curr_ip = line.split()[-1].strip('()')
+            if "MAC Address:" in line:
+                parts = line.split("MAC Address: ")[1]
+                mac = parts.split(' ', 1)[0]
+                vendor = parts.split(' ', 1)[1].strip('()') if len(parts.split(' ', 1))>1 else "Unknown"
+                if vendor == "Unknown": vendor = get_mac_vendor_fallback(mac)
+                devices.append({"ip": curr_ip, "mac": mac, "vendor": vendor})
+    except: devices.append({"ip":"Error","mac":"Scan Failed","vendor":""})
+    return devices
+
+def get_process_list():
+    procs = []
+    try:
+        for p in psutil.process_iter(['pid', 'username', 'name', 'cpu_percent', 'memory_percent', 'io_counters']):
+            try:
+                io = p.info['io_counters']
+                rb = io.read_bytes if io else 0
+                wb = io.write_bytes if io else 0
+                procs.append({"pid": p.info['pid'], "user": p.info['username'], "name": p.info['name'], "cpu": p.info['cpu_percent'], "mem": round(p.info['memory_percent'], 1), "disk": rb + wb})
+            except: pass
+    except: pass
+    return sorted(procs, key=lambda x: x['cpu'], reverse=True)[:50]
+
+def get_boot_state():
+    try: return "enabled" if "enabled" in subprocess.check_output("systemctl is-enabled piomni.service", shell=True).decode() else "disabled"
+    except: return "disabled"
+
+@app.route('/')
+def index(): return render_template('index.html')
+
+@app.route('/stream/speedtest')
+def stream_speedtest():
+    def generate():
+        yield "data: 🚀 正在初始化测速服务...\n\n"
+        p = subprocess.Popen(['stdbuf', '-o0', 'speedtest-cli'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=0)
+        for line in iter(p.stdout.readline, ''):
+            if line: yield f"data: {line.strip()}\n\n"
+        p.stdout.close(); p.wait()
+        yield "data: ✅ 测速完成\n\n"
+        yield "data: CLOSE\n\n"
+    return Response(generate(), mimetype='text/event-stream')
+
+@app.route('/stream/update')
+def stream_update():
+    def generate():
+        yield "data: 🚀 正在连接软件源...\n\n"
+        p = subprocess.Popen(['stdbuf', '-oL', 'sudo', 'apt', 'update', '-y'], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+        for line in p.stdout: yield f"data: {line}\n\n"
+        yield "data: CLOSE\n\n"
+    return Response(generate(), mimetype='text/event-stream')
+
+# 实时状态数据接口
+@app.route('/api/data')
+def get_data():
+    global last_net, last_disk, last_time, mem_history
+    now = time.time(); dt = max(now - last_time, 0.1)
+    
+    cn = psutil.net_io_counters(); cd = psutil.disk_io_counters()
+    up = (cn.bytes_sent - last_net.bytes_sent)/1024/dt
+    down = (cn.bytes_recv - last_net.bytes_recv)/1024/dt
+    dr = (cd.read_bytes - last_disk.read_bytes)/1024/dt
+    dw = (cd.write_bytes - last_disk.write_bytes)/1024/dt
+    last_net, last_disk, last_time = cn, cd, now
+    
+    mem_p = psutil.virtual_memory().percent
+    mem_history.append(mem_p)
+    if len(mem_history) > 30:
+        mem_history.pop(0)
+    
+    services = {}
+    for s in ["ssh", "vncserver-x11-serviced", "docker", "cron"]:
+        real = "wayvnc" if s == "vncserver-x11-serviced" and "not-found" in run_cmd("systemctl status vncserver-x11-serviced") else s
+        services[s] = "running" if run_cmd(f"systemctl is-active {real}") == "active" else "stopped"
+
+    gw = get_gateway()
+    pings = {"gateway": check_ping(gw), "baidu": check_ping("baidu.com"), "github": check_ping("github.com"), "google": check_ping("google.com")}
+    
+    ssd_temp = get_ssd_temp()
+
+    return jsonify({
+        "cpu": {"p": psutil.cpu_percent(), "cores": psutil.cpu_percent(percpu=True), "temp": run_cmd("vcgencmd measure_temp").replace("temp=","").replace("'C",""), "freq": int(int(run_cmd("vcgencmd measure_clock arm").split("=")[1])/1000000)},
+        "mem": {"p": mem_p, "history": mem_history},
+        "net": {"up": up, "down": down, "ip": run_cmd("hostname -I").split()[0] if run_cmd("hostname -I") else "N/A", "pings": pings},
+        "wifi": get_wifi(),
+        "disk": {"p": psutil.disk_usage('/').percent, "r": dr, "w": dw},
+        "load": os.getloadavg(),
+        "uptime": run_cmd("uptime -p").replace("up ",""),
+        "hostname": run_cmd("hostname"),
+        "services": services,
+        "boot": get_boot_state(),
+        "ssd_temp": ssd_temp
+    })
+
+# Docker 数据接口
+@app.route('/api/dockers')
+def get_dockers():
+    global GLOBAL_DOCKER_CACHE
+    return jsonify({"dockers": GLOBAL_DOCKER_CACHE})
+
+# 进程管理数据接口
+@app.route('/api/processes')
+def get_processes():
+    return jsonify({"processes": get_process_list()})
+
+@app.route('/api/tool/<name>')
+def tools(name):
+    if name == 'lan': return jsonify({"data": scan_lan()})
+    if name == 'ssh_log':
+        try:
+            raw = run_cmd("last -i -n 5 -F | grep -v 'wtmp starts'")
+            logs = []
+            for line in raw.split('\n'):
+                if not line: continue
+                p = line.split()
+                if len(p) > 5: logs.append({"user": p[0], "ip": p[2], "time": f"{p[4]} {p[5]} {p[6]}"})
+            return jsonify({"data": logs})
+        except: return jsonify({"data": []})
+    if name == 'disk_xray':
+        parts = []
+        for p in psutil.disk_partitions():
+            try:
+                u = psutil.disk_usage(p.mountpoint)
+                parts.append({"mount": p.mountpoint, "total": f"{u.total/1024**3:.1f}G", "used": f"{u.used/1024**3:.1f}G", "p": u.percent})
+            except: pass
+        return jsonify({"data": parts})
+    return jsonify({})
+
+@app.route('/api/service_log/<name>')
+def s_log(name):
+    # 防御路径穿越与命令注入
+    if re.match(r'^[a-zA-Z0-9.-]+$', name):
+        return jsonify({"log": run_cmd(f"systemctl status {name} -l --no-pager | head -n 30")})
+    return jsonify({"log": "Invalid service name"})
+
+# --- 定时任务 API ---
+
+@app.route('/api/cron/list')
+def cron_list():
+    cron_jobs = get_user_cron_jobs()
+    timer_jobs = get_systemd_timers()
+    return jsonify({
+        "cron": cron_jobs,
+        "timers": timer_jobs,
+        "total": len(cron_jobs) + len(timer_jobs)
+    })
+
+@app.route('/api/cron/toggle', methods=['POST'])
+def cron_toggle():
+    d = request.json
+    job_id = d.get('id', '')
+    enable = d.get('enable', True)
+    
+    if job_id.startswith('cron_') and job_id.replace('cron_', '').isdigit():
+        success = toggle_cron_job(job_id, enable)
+    elif job_id.startswith('timer_'):
+        unit = job_id.replace('timer_', '')
+        if re.match(r'^[a-zA-Z0-9.-]+\.timer$', unit):
+            success = toggle_systemd_timer(unit, enable)
+        else:
+            return jsonify({"success": False, "msg": "Invalid timer name"})
+    else:
+        return jsonify({"success": False, "msg": "Unknown job type"})
+    
+    return jsonify({"success": success, "msg": "OK" if success else "Failed"})
+
+# 安全参数化系统调用指令，避免 Shell 注入
+@app.route('/api/action', methods=['POST'])
+def action():
+    d = request.json
+    act = d.get('cmd')
+    val = d.get('val')
+    log = "Executed"
+    
+    if act == 'reboot':
+        subprocess.run(['sudo', 'reboot'])
+    elif act == 'shutdown':
+        subprocess.run(['sudo', 'shutdown', '-h', 'now'])
+    elif act == 'clean_log':
+        subprocess.run(['sudo', 'truncate', '-s', '0', '/var/log/syslog'])
+    elif act == 'resolution':
+        if val and re.match(r'^\d+$', str(val)):
+            update_config('hdmi_group', '2')
+            update_config('hdmi_mode', str(val))
+        else:
+            return jsonify({"error": "Invalid resolution value"})
+    elif act == 'gpu_mem':
+        if val and re.match(r'^\d+$', str(val)):
+            update_config('gpu_mem', str(val))
+        else:
+            return jsonify({"error": "Invalid GPU memory value"})
+    elif act == 'hostname':
+        if val and re.match(r'^[a-zA-Z0-9.-]+$', str(val)):
+            old = run_cmd("hostname")
+            if old:
+                subprocess.run(['sudo', 'hostnamectl', 'set-hostname', str(val)])
+                try:
+                    with open('/etc/hosts', 'r') as f:
+                        hosts_content = f.read()
+                    new_hosts = hosts_content.replace(old, str(val))
+                    tmp_hosts = '/tmp/hosts_piomni'
+                    with open(tmp_hosts, 'w') as f:
+                        f.write(new_hosts)
+                    subprocess.run(['sudo', 'mv', tmp_hosts, '/etc/hosts'])
+                    subprocess.run(['sudo', 'chmod', '644', '/etc/hosts'])
+                except:
+                    pass
+        else:
+            return jsonify({"error": "Invalid hostname value"})
+    elif act == 'ssh':
+        if val in ['on', 'off']:
+            action_val = 'enable' if val == 'on' else 'disable'
+            subprocess.run(['sudo', 'systemctl', action_val, '--now', 'ssh'])
+        else:
+            return jsonify({"error": "Invalid SSH state value"})
+    elif act == 'hdmi':
+        if val in ['on', 'off']:
+            power_val = '1' if val == 'on' else '0'
+            subprocess.run(['vcgencmd', 'display_power', power_val])
+        else:
+            return jsonify({"error": "Invalid HDMI state value"})
+    elif act == 'autostart':
+        if val in ['on', 'off']:
+            action_val = 'enable' if val == 'on' else 'disable'
+            subprocess.run(['sudo', 'systemctl', action_val, 'piomni.service'])
+        else:
+            return jsonify({"error": "Invalid autostart state value"})
+    elif act == 'ch_source':
+        return jsonify({"log": "source_changed"})
+    elif act == 'docker':
+        cid = d.get('id', '')
+        if val in ['start', 'stop', 'restart'] and re.match(r'^[a-zA-Z0-9_-]+$', cid):
+            subprocess.run(['sudo', 'docker', val, cid])
+            log = f"Docker {val} sent"
+        else:
+            return jsonify({"error": "Invalid docker command or container ID"})
+            
+    return jsonify({"log": log})
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000)
