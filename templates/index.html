@@ -122,8 +122,8 @@
 
         <div class="card">
             <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                <span class="val-sub">网络</span>
-                <span style="font-size:12px; font-weight:600" id="v-wifi">WiFi: --</span>
+                <span class="val-sub">网络监控</span>
+                <span style="font-size:12px; font-weight:600" id="v-ip">IP: --</span>
             </div>
             <div style="display:flex; justify-content:space-between; font-size:13px; font-weight:600">
                 <span style="color:#34c759">↓ <span id="txt-down">0</span></span>
@@ -170,8 +170,12 @@
     <!-- 文件管理页面 -->
     <div id="p-file" class="page">
         <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="subtitle" style="margin: 20px 0 10px 10px;">📂 文件浏览器</div>
-            <button onclick="showUploadModal()" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">📤 上传</button>
+            <div class="subtitle" style="margin: 20px 0 10px 10px;">📂 网页文件管理器</div>
+            <div style="display:flex; gap:12px;">
+                <button onclick="createFileOrDir(false)" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕文件</button>
+                <button onclick="createFileOrDir(true)" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕目录</button>
+                <button onclick="showUploadModal()" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">📤 上传</button>
+            </div>
         </div>
         <div class="card" style="padding: 12px 16px; margin-bottom: 12px; display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;">
             <span style="color:var(--text-sec);">当前路径:</span>
@@ -200,15 +204,10 @@
         <div class="subtitle">网络与诊断工具箱</div>
         <div class="grid">
             <div class="card clickable ctrl-card" onclick="runStreamTool('speedtest')">
-                <div style="font-size:24px">⚡</div><div class="ctrl-card-title">一键测速</div>
+                <div style="font-size:28px">⚡</div><div class="ctrl-card-title">一键测速</div>
             </div>
             <div class="card clickable ctrl-card" onclick="runTool('lan')">
-                <div style="font-size:24px">🕸️</div><div class="ctrl-card-title">局域网扫描</div>
-            </div>
-        </div>
-        <div class="grid" style="margin-top:-14px;">
-            <div class="card clickable ctrl-card" style="grid-column: span 2;" onclick="showWiFiManager()">
-                <div style="font-size:24px">📶</div><div class="ctrl-card-title">Wi-Fi 网络管理</div>
+                <div style="font-size:28px">🕸️</div><div class="ctrl-card-title">局域网扫描</div>
             </div>
         </div>
         
@@ -530,6 +529,7 @@
             $('#v-disk-p').text(d.disk.p+'%');
             $('#uptime').text('UP: '+d.uptime); 
             $('#date-now').text(new Date().toLocaleTimeString());
+            $('#v-ip').text('IP: ' + d.net.ip);
             
             // 系统资源警报 Banner 业务逻辑
             let alertMsg = [];
@@ -600,10 +600,10 @@
             }
         });
 
-        if (activeTab === 'serv' && tick % 3 === 0) {
+        if (activeTab === 'serv' && tick % 6 === 0) {
             updateDockers();
         }
-        if (activeTab === 'proc' && tick % 3 === 0) {
+        if (activeTab === 'proc' && tick % 6 === 0) {
             updateProcesses();
         }
     }
@@ -635,8 +635,8 @@
     }
 
     function renderProcesses() {
-        let query = $('#proc-search').val().toLowerCase();
-        let userFilter = $('#proc-filter-user').val();
+        let query = ($('#proc-search').val() || '').toLowerCase();
+        let userFilter = $('#proc-filter-user').val() || 'all';
         
         let filtered = rawProcesses.filter(p => {
             let matchQuery = p.name.toLowerCase().includes(query) || String(p.pid).includes(query);
@@ -695,64 +695,6 @@
                     alert('网络异常，操作失败');
                 }
             });
-        });
-    }
-
-    // Wi-Fi 扫描与连接模块
-    function showWiFiManager() {
-        openModal('Wi-Fi 网络管理', '<div style="padding:10px;text-align:center;color:#8e8e93">正在扫描 Wi-Fi 列表中...</div>');
-        $.getJSON('/api/wifi/scan', d => {
-            if (d.success && d.data && d.data.length > 0) {
-                let h = '<div style="display:flex; flex-direction:column; gap:10px; margin-top:10px; text-align:left; max-height:50vh; overflow-y:auto;">';
-                d.data.forEach(net => {
-                    h += `<div class="list-item" style="padding:10px 0; display:flex; justify-content:space-between; align-items:center;">
-                        <div>
-                            <div style="font-weight:600; font-size:14px;">${net.ssid}</div>
-                            <div style="font-size:11px; color:var(--text-sec);">${net.security}</div>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:12px;">
-                            <span style="font-size:11px; font-weight:600; color:var(--text-sec);">${net.signal}%</span>
-                            <button onclick="connectWiFi('${net.ssid}', '${net.security}')" style="border:none; background:var(--accent); color:white; font-size:12px; padding:6px 12px; border-radius:8px; cursor:pointer;">连接</button>
-                        </div>
-                    </div>`;
-                });
-                h += '</div>';
-                $('#modal-content').html(h);
-            } else {
-                $('#modal-content').html('<div style="padding:20px;text-align:center;color:var(--danger)">未扫描到无线网络，或系统无线网卡已被禁用。</div>');
-            }
-        });
-    }
-
-    function connectWiFi(ssid, security) {
-        let isSecured = security && security !== 'Open';
-        if (isSecured) {
-            openModal(`连接至 Wi-Fi: ${ssid}`, `
-                <div style="text-align:left; margin-top:10px;">
-                    <label style="font-size:12px; color:var(--text-sec); display:block; margin-bottom:4px;">请输入 Wi-Fi 密码</label>
-                    <input type="password" id="wifi-pass" placeholder="Password" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
-                </div>
-            `);
-            $('#btn-close-main').hide();
-            $('#confirm-row').show();
-            $('#btn-confirm').text('连接').css('background', 'var(--accent)').off('click').on('click', () => {
-                let pass = $('#wifi-pass').val();
-                doConnectWiFi(ssid, pass);
-            });
-        } else {
-            doConnectWiFi(ssid, '');
-        }
-    }
-
-    function doConnectWiFi(ssid, pass) {
-        openModal('正在连接', `正在尝试连接至网络 <b>${ssid}</b>...`);
-        $.ajax({
-            url: '/api/wifi/connect',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({ssid: ssid, password: pass}),
-            success: d => { openModal('连接结果', d.msg); },
-            error: () => { openModal('连接错误', '请求网络失败'); }
         });
     }
 
@@ -820,13 +762,23 @@
                         let sizeStr = f.is_dir ? '' : fmtFileSize(f.size);
                         let action = f.is_dir ? `loadFiles('${currentFilePath ? currentFilePath + '/' + f.name : f.name}')` : `openFileEditor('${currentFilePath ? currentFilePath + '/' + f.name : f.name}', '${f.name}')`;
                         
+                        let pathForActions = currentFilePath ? currentFilePath + '/' + f.name : f.name;
+                        let downloadBtn = f.is_dir ? '' : `<button onclick="event.stopPropagation(); downloadFile('${pathForActions}')" title="下载" style="border:none; background:none; color:var(--success); font-size:16px; cursor:pointer; padding: 4px;">📥</button>`;
+                        
                         h += `<div class="list-item clickable" onclick="${action}">
-                            <div>
-                                <span style="margin-right:8px;">${icon}</span>
-                                <span style="font-weight:600; font-size:14px;">${f.name}</span>
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="display:flex; align-items:center; gap:8px;">
+                                    <span>${icon}</span>
+                                    <span style="font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${f.name}</span>
+                                    <span style="font-size:11px; color:var(--text-sec); font-weight:500; margin-left:6px;">${sizeStr}</span>
+                                </div>
                                 <div style="font-size:10px; color:var(--text-sec); margin-top:2px;">${f.mtime}</div>
                             </div>
-                            <span style="font-size:12px; color:var(--text-sec); font-weight:500;">${sizeStr}</span>
+                            <div style="display:flex; align-items:center; gap:10px;">
+                                ${downloadBtn}
+                                <button onclick="event.stopPropagation(); renameFileOrDir('${f.name}')" title="重命名" style="border:none; background:none; color:var(--accent); font-size:16px; cursor:pointer; padding: 4px;">✏️</button>
+                                <button onclick="event.stopPropagation(); deleteFileOrDir('${f.name}')" title="删除" style="border:none; background:none; color:var(--danger); font-size:16px; cursor:pointer; padding: 4px;">🗑️</button>
+                            </div>
                         </div>`;
                     });
                 }
@@ -843,6 +795,105 @@
         const sizes = ['B', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    // 下载文件
+    function downloadFile(path) {
+        window.open('/api/files/download?path=' + encodeURIComponent(path), '_blank');
+    }
+
+    // 创建文件 / 文件夹
+    function createFileOrDir(isDir) {
+        let title = isDir ? '新建文件夹' : '新建文件';
+        let label = isDir ? '请输入文件夹名称' : '请输入文件名称';
+        openModal(title, `
+            <div style="text-align:left; margin-top:10px;">
+                <label style="font-size:12px; color:var(--text-sec); display:block; margin-bottom:4px;">${label}</label>
+                <input type="text" id="new-item-name" placeholder="Name" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+            </div>
+        `);
+        $('#btn-close-main').hide();
+        $('#confirm-row').show();
+        $('#btn-confirm').text('创建').css('background', 'var(--success)').off('click').on('click', () => {
+            let name = $('#new-item-name').val().trim();
+            if (!name) {
+                alert('名称不能为空');
+                return;
+            }
+            $.ajax({
+                url: '/api/files/create',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({path: currentFilePath, name: name, is_dir: isDir}),
+                success: d => {
+                    closeModal();
+                    alert(d.msg);
+                    loadFiles(currentFilePath);
+                },
+                error: () => {
+                    closeModal();
+                    alert('网络请求失败');
+                }
+            });
+        });
+    }
+
+    // 重命名文件 / 文件夹
+    function renameFileOrDir(oldName) {
+        openModal(`重命名: ${oldName}`, `
+            <div style="text-align:left; margin-top:10px;">
+                <label style="font-size:12px; color:var(--text-sec); display:block; margin-bottom:4px;">请输入新名称</label>
+                <input type="text" id="rename-item-name" value="${oldName}" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+            </div>
+        `);
+        $('#btn-close-main').hide();
+        $('#confirm-row').show();
+        $('#btn-confirm').text('重命名').css('background', 'var(--accent)').off('click').on('click', () => {
+            let newName = $('#rename-item-name').val().trim();
+            if (!newName) {
+                alert('名称不能为空');
+                return;
+            }
+            $.ajax({
+                url: '/api/files/rename',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({path: currentFilePath, old_name: oldName, new_name: newName}),
+                success: d => {
+                    closeModal();
+                    alert(d.msg);
+                    loadFiles(currentFilePath);
+                },
+                error: () => {
+                    closeModal();
+                    alert('网络请求失败');
+                }
+            });
+        });
+    }
+
+    // 删除文件 / 文件夹
+    function deleteFileOrDir(name) {
+        openModal('确认删除', `确定要永久删除 <b>${name}</b> 吗？此操作无法撤销。`);
+        $('#btn-close-main').hide();
+        $('#confirm-row').show();
+        $('#btn-confirm').text('删除').css('background', 'var(--danger)').off('click').on('click', () => {
+            $.ajax({
+                url: '/api/files/delete',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({path: currentFilePath, name: name}),
+                success: d => {
+                    closeModal();
+                    alert(d.msg);
+                    loadFiles(currentFilePath);
+                },
+                error: () => {
+                    closeModal();
+                    alert('网络请求失败');
+                }
+            });
+        });
     }
 
     function openFileEditor(path, name) {
@@ -1020,7 +1071,7 @@
 
     $(document).ready(() => {
         applyWidgets();
-        setInterval(update, 1000); 
+        setInterval(update, 500); 
         update();
     });
 </script>

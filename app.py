@@ -1,5 +1,5 @@
 import psutil, os, subprocess, time, socket, threading, re, json, urllib.request, shutil
-from flask import Flask, render_template, jsonify, request, Response
+from flask import Flask, render_template, jsonify, request, Response, send_from_directory
 from werkzeug.utils import secure_filename
 from concurrent.futures import ThreadPoolExecutor
 
@@ -360,14 +360,6 @@ def update_config(key, value):
         subprocess.run(f"sudo mv {tmp_path} {CONFIG_FILE} && sudo chmod 644 {CONFIG_FILE}", shell=True, check=True)
     except: pass
 
-def get_wifi():
-    try:
-        raw = run_cmd("iwconfig wlan0 | grep -E 'ESSID|Signal'")
-        ssid = raw.split('ESSID:"')[1].split('"')[0] if 'ESSID' in raw else "N/A"
-        dbm = raw.split('level=')[1].split(' ')[0] if 'level=' in raw else "0"
-        return {"ssid": ssid, "dbm": dbm}
-    except: return {"ssid": "N/A", "dbm": "0"}
-
 def get_gateway():
     try: return run_cmd("ip route list match 0/0 | awk '{print $3}'") or "1.1.1.1"
     except: return "1.1.1.1"
@@ -492,7 +484,6 @@ def get_data():
         "cpu": {"p": psutil.cpu_percent(), "cores": psutil.cpu_percent(percpu=True), "temp": cpu_temp, "freq": cpu_freq},
         "mem": {"p": mem_p, "history": mem_history},
         "net": {"up": up, "down": down, "ip": run_cmd("hostname -I").split()[0] if run_cmd("hostname -I") else "N/A", "pings": pings},
-        "wifi": get_wifi(),
         "disk": {"p": disk_p, "r": dr, "w": dw},
         "load": os.getloadavg(),
         "uptime": run_cmd("uptime -p").replace("up ",""),
@@ -529,67 +520,6 @@ def kill_process():
         except Exception as e:
             return jsonify({"success": False, "msg": f"结束失败: {str(e)}"})
     return jsonify({"success": False, "msg": "无效的 PID"})
-
-# Wi-Fi 扫描接口
-@app.route('/api/wifi/scan')
-def wifi_scan():
-    try:
-        res = subprocess.run(['sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'dev', 'wifi', 'list'], capture_output=True, text=True, timeout=5)
-        networks = []
-        seen = set()
-        if res.returncode == 0:
-            for line in res.stdout.strip().split('\n'):
-                if not line: continue
-                parts = line.split(':')
-                if len(parts) >= 2:
-                    ssid = parts[0]
-                    signal = parts[1]
-                    security = parts[2] if len(parts) > 2 else "Open"
-                    if ssid and ssid not in seen:
-                        seen.add(ssid)
-                        networks.append({"ssid": ssid, "signal": signal, "security": security})
-        else:
-            raw = run_cmd("sudo iwlist wlan0 scan | grep -E 'ESSID|Signal level'")
-            essids = re.findall(r'ESSID:"([^"]*)"', raw)
-            signals = re.findall(r'Quality=\d+/\d+\s+Signal level=(-?\d+)\s+dBm', raw) or re.findall(r'Signal level=(\d+)/100', raw)
-            for i, ssid in enumerate(essids):
-                if ssid and ssid not in seen:
-                    seen.add(ssid)
-                    sig = signals[i] if i < len(signals) else "50"
-                    networks.append({"ssid": ssid, "signal": sig, "security": "WPA2" if "WPA2" in raw else "Open"})
-        return jsonify({"success": True, "data": networks})
-    except Exception as e:
-        return jsonify({"success": False, "msg": str(e)})
-
-# Wi-Fi 连接接口
-@app.route('/api/wifi/connect', methods=['POST'])
-def wifi_connect():
-    d = request.json
-    ssid = d.get('ssid')
-    password = d.get('password', '')
-    if not ssid:
-        return jsonify({"success": False, "msg": "SSID 不能为空"})
-    try:
-        res_check = subprocess.run(['which', 'nmcli'], capture_output=True)
-        if res_check.returncode == 0:
-            cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
-            if password:
-                cmd.extend(['password', password])
-            res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-            if res.returncode == 0:
-                return jsonify({"success": True, "msg": f"成功连接至 Wi-Fi: {ssid}"})
-            else:
-                return jsonify({"success": False, "msg": res.stderr.strip()})
-        else:
-            wpa_conf = f'\nnetwork={{\n    ssid="{ssid}"\n    psk="{password}"\n}}\n'
-            tmp_path = "/tmp/wpa_supplicant_add"
-            with open(tmp_path, 'w') as f:
-                f.write(wpa_conf)
-            subprocess.run(f"cat {tmp_path} | sudo tee -a /etc/wpa_supplicant/wpa_supplicant.conf", shell=True, check=True)
-            subprocess.run("sudo wpa_cli -i wlan0 reconfigure", shell=True)
-            return jsonify({"success": True, "msg": f"网络 {ssid} 配置写入成功并已应用"})
-    except Exception as e:
-        return jsonify({"success": False, "msg": str(e)})
 
 # 告警 Webhook 设置接口
 @app.route('/api/webhook/set', methods=['POST'])
@@ -632,6 +562,82 @@ def list_files():
         })
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)})
+
+# 新建文件 / 文件夹 API
+@app.route('/api/files/create', methods=['POST'])
+def create_file_or_dir():
+    d = request.json
+    path_param = d.get('path', '')
+    name = d.get('name', '')
+    is_dir = d.get('is_dir', False)
+    if not name:
+        return jsonify({"success": False, "msg": "名称不能为空"})
+    
+    target_parent = get_safe_path(path_param)
+    target_path = os.path.join(target_parent, secure_filename(name))
+    try:
+        if is_dir:
+            os.makedirs(target_path, exist_ok=True)
+            return jsonify({"success": True, "msg": f"文件夹 {name} 创建成功"})
+        else:
+            with open(target_path, 'w') as f:
+                f.write('')
+            return jsonify({"success": True, "msg": f"文件 {name} 创建成功"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 重命名文件 / 文件夹 API
+@app.route('/api/files/rename', methods=['POST'])
+def rename_file_or_dir():
+    d = request.json
+    path_param = d.get('path', '')
+    old_name = d.get('old_name', '')
+    new_name = d.get('new_name', '')
+    if not old_name or not new_name:
+        return jsonify({"success": False, "msg": "名称不能为空"})
+    
+    target_dir = get_safe_path(path_param)
+    old_path = os.path.join(target_dir, old_name)
+    new_path = os.path.join(target_dir, secure_filename(new_name))
+    try:
+        os.rename(old_path, new_path)
+        return jsonify({"success": True, "msg": "重命名成功"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 删除文件 / 文件夹 API
+@app.route('/api/files/delete', methods=['POST'])
+def delete_file_or_dir():
+    d = request.json
+    path_param = d.get('path', '')
+    name = d.get('name', '')
+    if not name:
+        return jsonify({"success": False, "msg": "名称不能为空"})
+    
+    target_dir = get_safe_path(path_param)
+    target_path = os.path.join(target_dir, name)
+    try:
+        if os.path.isdir(target_path):
+            shutil.rmtree(target_path)
+        else:
+            os.remove(target_path)
+        return jsonify({"success": True, "msg": "删除成功"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 下载文件 API
+@app.route('/api/files/download')
+def download_file():
+    path_param = request.args.get('path', '')
+    target_file = get_safe_path(path_param)
+    if os.path.isdir(target_file):
+        return "无法下载文件夹", 400
+    try:
+        directory = os.path.dirname(target_file)
+        filename = os.path.basename(target_file)
+        return send_from_directory(directory, filename, as_attachment=True)
+    except Exception as e:
+        return str(e), 500
 
 # 读取文件接口
 @app.route('/api/files/read')
@@ -897,4 +903,3 @@ def action():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
-
