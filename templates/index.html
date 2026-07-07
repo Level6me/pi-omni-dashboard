@@ -16,7 +16,7 @@
         .header { margin: 20px 0; display: flex; justify-content: space-between; align-items: flex-end; }
         .title { font-size: 34px; font-weight: 700; }
         .subtitle { font-size: 13px; color: var(--text-sec); font-weight: 500; margin: 30px 0 10px 10px; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+        .grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
         .card { background: var(--card); border-radius: 18px; padding: 18px; margin-bottom: 14px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
         .val-big { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
         .val-sub { font-size: 14px; color: var(--text-sec); font-weight: 500; }
@@ -45,7 +45,7 @@
         .core-track { flex-grow: 1; height: 8px; background: rgba(128,128,128,0.15); border-radius: 4px; overflow: hidden; margin: 0 10px; }
         .core-fill { height: 100%; background: var(--accent); transition: width 0.3s; }
         .core-val { font-size: 12px; font-weight: 600; width: 35px; text-align: right; }
-        .toggle-switch { position: relative; width: 50px; height: 30px; }
+        .toggle-switch { position: relative; width: 50px; height: 30px; flex-shrink: 0; }
         .toggle-switch input { opacity: 0; width: 0; height: 0; }
         .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(120,120,128,0.2); border-radius: 34px; transition: .3s; }
         .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 2px; bottom: 2px; background-color: white; border-radius: 50%; transition: .3s; }
