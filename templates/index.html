@@ -439,6 +439,27 @@
         onCronPresetChange(val);
     }
 
+    function toggleMonthMulti(checked) {
+        if (!checked) {
+            let activeBtns = $('.monthday-btn.active');
+            if (activeBtns.length > 1) {
+                let firstVal = activeBtns.first().data('val');
+                $('.monthday-btn').removeClass('active');
+                $(`.monthday-btn[data-val="${firstVal}"]`).addClass('active');
+            }
+        }
+    }
+
+    function selectMonthDay(btn) {
+        let isMulti = $('#cron-month-multi').is(':checked');
+        if (isMulti) {
+            $(btn).toggleClass('active');
+        } else {
+            $('.monthday-btn').removeClass('active');
+            $(btn).addClass('active');
+        }
+    }
+
     function onCronPresetChange(val) {
         let formHtml = '';
         if (val === 'every_min') {
@@ -509,10 +530,19 @@
         } else if (val === 'every_month') {
             formHtml = `
                 <div style="display:flex; flex-direction:column; text-align:left;">
-                    <span style="font-size:11px; color:var(--text-sec); font-weight:600;">在每月的第几号执行：</span>
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:11px; color:var(--text-sec); font-weight:600;">在每月的第几号执行：</span>
+                        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:11px; color:var(--text-sec); font-weight:600;">
+                            <span>多选日期</span>
+                            <label class="toggle-switch" style="transform: scale(0.7); margin: 0; width: 50px; height: 30px;">
+                                <input type="checkbox" id="cron-month-multi" onchange="toggleMonthMulti(this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </label>
+                    </div>
                     <div class="monthday-grid">
                         ${Array.from({length: 31}, (_, i) => i + 1).map(day => `
-                            <button type="button" class="monthday-btn ${day === 1 ? 'active' : ''}" data-val="${day}" onclick="$('.monthday-btn').removeClass('active'); $(this).addClass('active')">${day}</button>
+                            <button type="button" class="monthday-btn ${day === 1 ? 'active' : ''}" data-val="${day}" onclick="selectMonthDay(this)">${day}</button>
                         `).join('')}
                     </div>
                     <div class="time-select-group" style="margin-top:4px;">
@@ -599,10 +629,17 @@
                 let min = $('#cron-val-min').val();
                 schedule = `${min} ${hour} * * ${days.join(',')}`;
             } else if (type === 'every_month') {
-                let dom = $('.monthday-btn.active').data('val') || 1;
+                let doms = [];
+                $('.monthday-btn.active').each(function() {
+                    doms.push($(this).data('val'));
+                });
+                if (doms.length === 0) {
+                    alert('请至少选择一个日期！');
+                    return;
+                }
                 let hour = $('#cron-val-hour').val();
                 let min = $('#cron-val-min').val();
-                schedule = `${min} ${hour} ${dom} * *`;
+                schedule = `${min} ${hour} ${doms.join(',')} * *`;
             } else if (type === 'custom') {
                 schedule = $('#cron-add-schedule').val().trim();
             }
