@@ -80,6 +80,8 @@
         .cron-time { font-size: 12px; color: var(--text-sec); }
         .cron-cmd { font-size: 10px; color: var(--text-sec); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
         .cron-type-badge { font-size: 9px; padding: 2px 6px; border-radius: 6px; background: rgba(128,128,128,0.1); color: var(--text-sec); }
+        .ctrl-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
+        .ctrl-card-title { font-weight: 600; font-size: 14px; margin-top: 8px; color: var(--text); }
     </style>
 </head>
 <body>
@@ -197,16 +199,16 @@
     <div id="p-ctrl" class="page">
         <div class="subtitle">网络与诊断工具箱</div>
         <div class="grid">
-            <div class="card clickable" style="text-align:center; padding:20px" onclick="runStreamTool('speedtest')">
-                <div style="font-size:24px">⚡</div><div class="proc-name">一键测速</div>
+            <div class="card clickable ctrl-card" onclick="runStreamTool('speedtest')">
+                <div style="font-size:24px">⚡</div><div class="ctrl-card-title">一键测速</div>
             </div>
-            <div class="card clickable" style="text-align:center; padding:20px" onclick="runTool('lan')">
-                <div style="font-size:24px">🕸️</div><div class="proc-name">局域网扫描</div>
+            <div class="card clickable ctrl-card" onclick="runTool('lan')">
+                <div style="font-size:24px">🕸️</div><div class="ctrl-card-title">局域网扫描</div>
             </div>
         </div>
         <div class="grid" style="margin-top:-14px;">
-            <div class="card clickable" style="text-align:center; padding:20px; grid-column: span 2;" onclick="showWiFiManager()">
-                <div style="font-size:24px">📶</div><div class="proc-name">Wi-Fi 网络管理</div>
+            <div class="card clickable ctrl-card" style="grid-column: span 2;" onclick="showWiFiManager()">
+                <div style="font-size:24px">📶</div><div class="ctrl-card-title">Wi-Fi 网络管理</div>
             </div>
         </div>
         
