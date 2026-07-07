@@ -84,6 +84,21 @@
         .cron-card-btn { border: none; background: none; font-size: 16px; cursor: pointer; padding: 4px; border-radius: 6px; transition: 0.2s; display: flex; align-items: center; justify-content: center; }
         .ctrl-card { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
         .ctrl-card-title { font-weight: 600; font-size: 14px; margin-top: 8px; color: var(--text); }
+        /* 新增定时任务弹窗美化 */
+        .freq-segmented { display: flex; background: rgba(128,128,128,0.1); padding: 3px; border-radius: 12px; margin-bottom: 12px; gap: 2px; }
+        .freq-segment { flex: 1; border: none; background: none; color: var(--text-sec); padding: 8px 4px; border-radius: 9px; font-size: 11px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: 0.2s; text-align: center; }
+        .freq-segment.active { background: var(--card); color: var(--text); box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
+        .time-select-group { display: flex; align-items: center; gap: 8px; justify-content: center; background: rgba(128,128,128,0.05); padding: 12px; border-radius: 14px; margin-top: 8px; }
+        .time-select { border: none; background: var(--card); padding: 8px 12px; border-radius: 10px; color: var(--accent); font-weight: 700; font-size: 16px; outline: none; box-shadow: 0 2px 5px rgba(0,0,0,0.04); cursor: pointer; }
+        .weekday-grid { display: flex; justify-content: space-between; gap: 4px; margin: 10px 0; }
+        .weekday-btn { width: 34px; height: 34px; border-radius: 50%; border: none; background: rgba(128,128,128,0.08); color: var(--text); font-weight: 600; font-size: 12px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .weekday-btn.active { background: var(--accent); color: white; box-shadow: 0 3px 8px rgba(0, 122, 255, 0.3); }
+        .monthday-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin: 10px 0; }
+        .monthday-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(128,128,128,0.08); color: var(--text); font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .monthday-btn.active { background: var(--accent); color: white; box-shadow: 0 3px 8px rgba(0, 122, 255, 0.3); }
+        .modal-input-card { background: rgba(128,128,128,0.05); padding: 12px 16px; border-radius: 14px; display: flex; flex-direction: column; gap: 4px; border: 1px solid rgba(128,128,128,0.08); }
+        .modal-input-card label { font-size: 11px; color: var(--text-sec); font-weight: 600; text-align: left; }
+        .modal-input-card input { width: 100%; border: none; background: transparent; padding: 4px 0; color: var(--text); font-size: 14px; font-weight: 500; outline: none; box-sizing: border-box; }
     </style>
 </head>
 <body>
@@ -413,105 +428,106 @@
         return opt;
     }
 
+    function setFreqSegment(val, el) {
+        $('.freq-segment').removeClass('active');
+        $(el).addClass('active');
+        $('#cron-add-preset').val(val);
+        onCronPresetChange(val);
+    }
+
     function onCronPresetChange(val) {
         let formHtml = '';
         if (val === 'every_min') {
-            formHtml = `<div style="font-size:12px; color:var(--text-sec); margin-top:5px;">任务将在每分钟执行一次。</div>`;
+            formHtml = `<div style="font-size:12px; color:var(--text-sec); text-align:center; padding:10px;">任务将在每分钟自动执行一次。</div>`;
         } else if (val === 'every_hour') {
             formHtml = `
-                <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-                    <span style="font-size:12px; color:var(--text-sec);">在每小时的第</span>
-                    <select id="cron-val-min" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                <div class="time-select-group">
+                    <span style="font-size:13px; color:var(--text-sec); font-weight:500;">在每小时的第</span>
+                    <select id="cron-val-min" class="time-select">
                         ${genOptions(0, 59)}
                     </select>
-                    <span style="font-size:12px; color:var(--text-sec);">分钟执行</span>
+                    <span style="font-size:13px; color:var(--text-sec); font-weight:500;">分钟执行</span>
                 </div>
             `;
         } else if (val === 'every_x_hours') {
             formHtml = `
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:12px; color:var(--text-sec);">每隔</span>
-                        <select id="cron-val-hour-interval" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div class="time-select-group" style="margin-top:0;">
+                        <span style="font-size:13px; color:var(--text-sec); font-weight:500;">每隔</span>
+                        <select id="cron-val-hour-interval" class="time-select">
                             ${genOptions(1, 23, 1)}
                         </select>
-                        <span style="font-size:12px; color:var(--text-sec);">小时执行</span>
+                        <span style="font-size:13px; color:var(--text-sec); font-weight:500;">小时执行</span>
                     </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:12px; color:var(--text-sec);">在小时内的第</span>
-                        <select id="cron-val-min" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                    <div class="time-select-group" style="margin-top:0;">
+                        <span style="font-size:13px; color:var(--text-sec); font-weight:500;">在小时内的第</span>
+                        <select id="cron-val-min" class="time-select">
                             ${genOptions(0, 59)}
                         </select>
-                        <span style="font-size:12px; color:var(--text-sec);">分钟</span>
+                        <span style="font-size:13px; color:var(--text-sec); font-weight:500;">分钟</span>
                     </div>
                 </div>
             `;
         } else if (val === 'every_day') {
             formHtml = `
-                <div style="display:flex; align-items:center; gap:8px; margin-top:8px;">
-                    <span style="font-size:12px; color:var(--text-sec);">在每天的</span>
-                    <select id="cron-val-hour" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                <div class="time-select-group">
+                    <span style="font-size:13px; color:var(--text-sec); font-weight:500;">每天的时间：</span>
+                    <select id="cron-val-hour" class="time-select">
                         ${genOptions(0, 23)}
                     </select>
-                    <span style="font-size:12px; color:var(--text-sec);">点</span>
-                    <select id="cron-val-min" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                    <span style="font-size:16px; color:var(--text-sec); font-weight:700;">:</span>
+                    <select id="cron-val-min" class="time-select">
                         ${genOptions(0, 59)}
                     </select>
-                    <span style="font-size:12px; color:var(--text-sec);">分执行</span>
                 </div>
             `;
         } else if (val === 'every_week') {
             formHtml = `
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px; text-align:left;">
-                    <span style="font-size:12px; color:var(--text-sec);">选择每周的哪几天：</span>
-                    <div style="display:flex; flex-wrap:wrap; gap:6px;">
+                <div style="display:flex; flex-direction:column; text-align:left;">
+                    <span style="font-size:11px; color:var(--text-sec); font-weight:600;">选择每周的哪几天：</span>
+                    <div class="weekday-grid">
                         ${['日', '一', '二', '三', '四', '五', '六'].map((day, idx) => `
-                            <label style="font-size:12px; background:rgba(128,128,128,0.1); padding:6px 10px; border-radius:8px; display:flex; align-items:center; gap:4px; cursor:pointer;">
-                                <input type="checkbox" name="cron-week-day" value="${idx}" ${idx === 1 ? 'checked' : ''}> ${day}
-                            </label>
+                            <button type="button" class="weekday-btn ${idx === 1 ? 'active' : ''}" data-val="${idx}" onclick="$(this).toggleClass('active')">${day}</button>
                         `).join('')}
                     </div>
-                    <div style="display:flex; align-items:center; gap:8px; margin-top:4px;">
-                        <span style="font-size:12px; color:var(--text-sec);">具体时间：</span>
-                        <select id="cron-val-hour" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                    <div class="time-select-group" style="margin-top:4px;">
+                        <span style="font-size:13px; color:var(--text-sec); font-weight:500;">具体时间：</span>
+                        <select id="cron-val-hour" class="time-select">
                             ${genOptions(0, 23)}
                         </select>
-                        <span style="font-size:12px; color:var(--text-sec);">点</span>
-                        <select id="cron-val-min" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                        <span style="font-size:16px; color:var(--text-sec); font-weight:700;">:</span>
+                        <select id="cron-val-min" class="time-select">
                             ${genOptions(0, 59)}
                         </select>
-                        <span style="font-size:12px; color:var(--text-sec);">分</span>
                     </div>
                 </div>
             `;
         } else if (val === 'every_month') {
             formHtml = `
-                <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:12px; color:var(--text-sec);">在每月的第</span>
-                        <select id="cron-val-dom" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
-                            ${genOptions(1, 31, 1)}
-                        </select>
-                        <span style="font-size:12px; color:var(--text-sec);">号</span>
+                <div style="display:flex; flex-direction:column; text-align:left;">
+                    <span style="font-size:11px; color:var(--text-sec); font-weight:600;">在每月的第几号执行：</span>
+                    <div class="monthday-grid">
+                        ${Array.from({length: 31}, (_, i) => i + 1).map(day => `
+                            <button type="button" class="monthday-btn ${day === 1 ? 'active' : ''}" data-val="${day}" onclick="$('.monthday-btn').removeClass('active'); $(this).addClass('active')">${day}</button>
+                        `).join('')}
                     </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <span style="font-size:12px; color:var(--text-sec);">具体时间：</span>
-                        <select id="cron-val-hour" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                    <div class="time-select-group" style="margin-top:4px;">
+                        <span style="font-size:13px; color:var(--text-sec); font-weight:500;">具体时间：</span>
+                        <select id="cron-val-hour" class="time-select">
                             ${genOptions(0, 23)}
                         </select>
-                        <span style="font-size:12px; color:var(--text-sec);">点</span>
-                        <select id="cron-val-min" style="border:none; background:rgba(128,128,128,0.15); padding:8px 12px; border-radius:8px; color:var(--accent); font-weight:600; font-size:14px; outline:none;">
+                        <span style="font-size:16px; color:var(--text-sec); font-weight:700;">:</span>
+                        <select id="cron-val-min" class="time-select">
                             ${genOptions(0, 59)}
                         </select>
-                        <span style="font-size:12px; color:var(--text-sec);">分</span>
                     </div>
                 </div>
             `;
         } else if (val === 'custom') {
             formHtml = `
-                <div style="margin-top:8px;">
-                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">自定义 Cron 时间表达式</label>
-                    <input type="text" id="cron-add-schedule" value="0 0 * * *" placeholder="例如: 0 2 * * *" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+                <div class="modal-input-card">
+                    <label>自定义 Cron 时间表达式</label>
+                    <input type="text" id="cron-add-schedule" value="0 0 * * *" placeholder="例如: 0 2 * * *">
                 </div>
             `;
         }
@@ -520,27 +536,28 @@
 
     function showAddCronModal() {
         openModal('新增 Crontab 定时任务', `
-            <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px; text-align:left;">
-                <div>
-                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">任务备注名称</label>
-                    <input type="text" id="cron-add-name" placeholder="例如: 每日日志清理" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+            <div style="display:flex; flex-direction:column; gap:14px; margin-top:10px; text-align:left;">
+                <div class="modal-input-card">
+                    <label>任务备注名称</label>
+                    <input type="text" id="cron-add-name" placeholder="例如: 每日日志清理">
                 </div>
                 <div>
-                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">执行频率</label>
-                    <select id="cron-add-preset" onchange="onCronPresetChange(this.value)" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--accent); box-sizing:border-box; outline:none; text-align:left; font-weight:600; font-size:14px;">
-                        <option value="every_day">每天</option>
-                        <option value="every_min">每分钟</option>
-                        <option value="every_hour">每小时</option>
-                        <option value="every_x_hours">每隔几小时</option>
-                        <option value="every_week">每周</option>
-                        <option value="every_month">每月</option>
-                        <option value="custom">自定义时间表达式</option>
-                    </select>
+                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:6px; font-weight:600;">执行频率</label>
+                    <div class="freq-segmented">
+                        <button type="button" class="freq-segment active" onclick="setFreqSegment('every_day', this)">每天</button>
+                        <button type="button" class="freq-segment" onclick="setFreqSegment('every_min', this)">每分</button>
+                        <button type="button" class="freq-segment" onclick="setFreqSegment('every_hour', this)">每时</button>
+                        <button type="button" class="freq-segment" onclick="setFreqSegment('every_x_hours', this)">间隔</button>
+                        <button type="button" class="freq-segment" onclick="setFreqSegment('every_week', this)">每周</button>
+                        <button type="button" class="freq-segment" onclick="setFreqSegment('every_month', this)">每月</button>
+                        <button type="button" class="freq-segment" onclick="setFreqSegment('custom', this)">自定义</button>
+                    </div>
+                    <input type="hidden" id="cron-add-preset" value="every_day">
                 </div>
                 <div id="cron-dynamic-options"></div>
-                <div>
-                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">运行指令</label>
-                    <input type="text" id="cron-add-cmd" placeholder="例如: /usr/bin/python3 /home/ubuntu/script.py" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+                <div class="modal-input-card">
+                    <label>运行指令</label>
+                    <input type="text" id="cron-add-cmd" placeholder="例如: /usr/bin/python3 /home/ubuntu/script.py">
                 </div>
             </div>
         `);
@@ -567,8 +584,8 @@
                 schedule = `${min} ${hour} * * *`;
             } else if (type === 'every_week') {
                 let days = [];
-                $('input[name="cron-week-day"]:checked').each(function() {
-                    days.push($(this).val());
+                $('.weekday-btn.active').each(function() {
+                    days.push($(this).data('val'));
                 });
                 if (days.length === 0) {
                     alert('请至少选择周内的一天！');
@@ -578,7 +595,7 @@
                 let min = $('#cron-val-min').val();
                 schedule = `${min} ${hour} * * ${days.join(',')}`;
             } else if (type === 'every_month') {
-                let dom = $('#cron-val-dom').val();
+                let dom = $('.monthday-btn.active').data('val') || 1;
                 let hour = $('#cron-val-hour').val();
                 let min = $('#cron-val-min').val();
                 schedule = `${min} ${hour} ${dom} * *`;
