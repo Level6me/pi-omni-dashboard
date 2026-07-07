@@ -398,6 +398,15 @@
         });
     }
 
+    function onCronPresetChange(val) {
+        if (val === 'custom') {
+            $('#cron-custom-expr-row').show();
+        } else {
+            $('#cron-custom-expr-row').hide();
+            $('#cron-add-schedule').val(val);
+        }
+    }
+
     function showAddCronModal() {
         openModal('新增 Crontab 定时任务', `
             <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px; text-align:left;">
@@ -406,8 +415,19 @@
                     <input type="text" id="cron-add-name" placeholder="例如: 每日日志清理" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
                 </div>
                 <div>
-                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">时间表达式 (Cron Expression)</label>
-                    <input type="text" id="cron-add-schedule" placeholder="例如: 0 2 * * *" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">执行频率 (预设)</label>
+                    <select id="cron-add-preset" onchange="onCronPresetChange(this.value)" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--accent); box-sizing:border-box; outline:none; text-align:left; font-weight:600; font-size:14px;">
+                        <option value="0 0 * * *">每天凌晨 (00:00)</option>
+                        <option value="* * * * *">每分钟</option>
+                        <option value="0 * * * *">每小时</option>
+                        <option value="0 0 * * 1">每周一凌晨 (00:00)</option>
+                        <option value="0 0 1 * *">每月 1 号凌晨 (00:00)</option>
+                        <option value="custom">自定义时间表达式</option>
+                    </select>
+                </div>
+                <div id="cron-custom-expr-row" style="display:none;">
+                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">自定义 Cron 时间表达式</label>
+                    <input type="text" id="cron-add-schedule" value="0 0 * * *" placeholder="例如: 0 2 * * *" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
                 </div>
                 <div>
                     <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">运行指令</label>
@@ -419,7 +439,8 @@
         $('#confirm-row').show();
         $('#btn-confirm').text('添加').css('background', 'var(--accent)').off('click').on('click', () => {
             let name = $('#cron-add-name').val();
-            let schedule = $('#cron-add-schedule').val();
+            let preset = $('#cron-add-preset').val();
+            let schedule = preset === 'custom' ? $('#cron-add-schedule').val().trim() : preset;
             let cmd = $('#cron-add-cmd').val();
             if (!schedule || !cmd) {
                 alert('请填写必填的表达式与指令');
@@ -941,7 +962,7 @@
     function showUploadModal() {
         openModal('上传文件', `
             <div style="text-align:left; margin-top:10px; display:flex; flex-direction:column; gap:12px;">
-                <div style="font-size:12px; color:var(--text-sec);">将文件上传至：<b>/${currentFilePath}</b></div>
+                <div style="font-size:12px; color:var(--text-sec); ">将文件上传至：<b>/${currentFilePath}</b></div>
                 <input type="file" id="file-upload-input" style="font-size:14px; color:var(--text); padding: 8px 0;">
             </div>
         `);
@@ -1006,7 +1027,7 @@
     }
 
     function showDiskXray() {
-        openModal('磁盘透视', 'Loading...');
+        openModal('磁盘透戏', 'Loading...');
         $.getJSON('/api/tool/disk_xray', d => {
             let h = ''; d.data.forEach(p => { 
                 h += `<div style="margin-bottom:15px"><div style="display:flex;justify-content:space-between;font-size:13px;font-weight:600"><span>${p.mount}</span><span>${p.used} / ${p.total}</span></div><div style="height:6px;background:rgba(128,128,128,0.15);border-radius:3px;margin-top:5px"><div style="height:100%;background:var(--accent);border-radius:3px;width:${p.p}%"></div></div></div>`; 
@@ -1014,6 +1035,8 @@
             $('#modal-content').html(h);
         });
     }
+
+    运用 = openModal;
 
     function openModal(t, c) { 
         $('#modal-title').html(t); 
