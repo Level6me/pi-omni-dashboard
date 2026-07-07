@@ -1,5 +1,6 @@
-import psutil, os, subprocess, time, socket, threading, re, json
+import psutil, os, subprocess, time, socket, threading, re, json, urllib.request, shutil
 from flask import Flask, render_template, jsonify, request, Response
+from werkzeug.utils import secure_filename
 
 app = Flask(__name__)
 
@@ -9,14 +10,78 @@ last_disk = psutil.disk_io_counters()
 last_time = time.time()
 GLOBAL_DOCKER_CACHE = []
 mem_history = []
+last_alert_time = 0
 
 psutil.cpu_percent(percpu=True)
 
 CONFIG_FILE = '/boot/firmware/config.txt' if os.path.exists('/boot/firmware/config.txt') else '/boot/config.txt'
+WEBHOOK_FILE = os.path.expanduser('~/pi_omni/webhook_config.json')
+FILE_ROOT = os.path.expanduser('~')
 
 def run_cmd(cmd):
     try: return subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT).decode().strip()
     except: return ""
+
+def get_webhook_url():
+    try:
+        if os.path.exists(WEBHOOK_FILE):
+            with open(WEBHOOK_FILE, 'r') as f:
+                return json.load(f).get('webhook_url', '')
+    except: pass
+    return ''
+
+def save_webhook_url(url):
+    try:
+        os.makedirs(os.path.dirname(WEBHOOK_FILE), exist_ok=True)
+        with open(WEBHOOK_FILE, 'w') as f:
+            json.dump({'webhook_url': url}, f)
+        return True
+    except: return False
+
+def check_and_send_alert(cpu_temp, disk_p):
+    global last_alert_time
+    webhook_url = get_webhook_url()
+    if not webhook_url:
+        return
+    
+    now = time.time()
+    if now - last_alert_time < 3600: # 1小时防刷冷热时间
+        return
+        
+    msg_parts = []
+    try:
+        temp_val = float(cpu_temp)
+        if temp_val > 80.0:
+            msg_parts.append(f"⚠️ CPU 温度过高: {temp_val}°C")
+    except: pass
+    
+    try:
+        disk_val = float(disk_p)
+        if disk_val > 90.0:
+            msg_parts.append(f"⚠️ 磁盘空间不足: {disk_val}%")
+    except: pass
+        
+    if msg_parts:
+        alert_text = "\n".join(msg_parts)
+        payload = {"text": f"【Pi Omni Dashboard 告警】\n{alert_text}"}
+        try:
+            req = urllib.request.Request(
+                webhook_url, 
+                data=json.dumps(payload).encode('utf-8'),
+                headers={'Content-Type': 'application/json'}
+            )
+            with urllib.request.urlopen(req, timeout=5) as response:
+                pass
+            last_alert_time = now
+        except: pass
+
+def get_safe_path(rel_path):
+    if not rel_path:
+        return FILE_ROOT
+    abs_path = os.path.abspath(os.path.join(FILE_ROOT, rel_path))
+    if abs_path.startswith(FILE_ROOT):
+        return abs_path
+    return FILE_ROOT
 
 # --- 定时任务管理 ---
 
@@ -350,22 +415,29 @@ def get_data():
         services[s] = "running" if run_cmd(f"systemctl is-active {real}") == "active" else "stopped"
 
     gw = get_gateway()
-    pings = {"gateway": check_ping(gw), "baidu": check_ping("baidu.com"), "github": check_ping("github.com"), "google": check_ping("google.com")}
     
+    cpu_temp = run_cmd("vcgencmd measure_temp").replace("temp=","").replace("'C","")
+    disk_p = psutil.disk_usage('/').percent
+    
+    # 资源阈值警报检测与发送
+    check_and_send_alert(cpu_temp, disk_p)
+    
+    pings = {"gateway": check_ping(gw), "baidu": check_ping("baidu.com"), "github": check_ping("github.com"), "google": check_ping("google.com")}
     ssd_temp = get_ssd_temp()
 
     return jsonify({
-        "cpu": {"p": psutil.cpu_percent(), "cores": psutil.cpu_percent(percpu=True), "temp": run_cmd("vcgencmd measure_temp").replace("temp=","").replace("'C",""), "freq": int(int(run_cmd("vcgencmd measure_clock arm").split("=")[1])/1000000)},
+        "cpu": {"p": psutil.cpu_percent(), "cores": psutil.cpu_percent(percpu=True), "temp": cpu_temp, "freq": int(int(run_cmd("vcgencmd measure_clock arm").split("=")[1])/1000000)},
         "mem": {"p": mem_p, "history": mem_history},
         "net": {"up": up, "down": down, "ip": run_cmd("hostname -I").split()[0] if run_cmd("hostname -I") else "N/A", "pings": pings},
         "wifi": get_wifi(),
-        "disk": {"p": psutil.disk_usage('/').percent, "r": dr, "w": dw},
+        "disk": {"p": disk_p, "r": dr, "w": dw},
         "load": os.getloadavg(),
         "uptime": run_cmd("uptime -p").replace("up ",""),
         "hostname": run_cmd("hostname"),
         "services": services,
         "boot": get_boot_state(),
-        "ssd_temp": ssd_temp
+        "ssd_temp": ssd_temp,
+        "webhook_url": get_webhook_url()
     })
 
 # Docker 数据接口
@@ -378,6 +450,182 @@ def get_dockers():
 @app.route('/api/processes')
 def get_processes():
     return jsonify({"processes": get_process_list()})
+
+# 结束进程 API
+@app.route('/api/process/kill', methods=['POST'])
+def kill_process():
+    d = request.json
+    pid = d.get('pid')
+    if pid and isinstance(pid, int):
+        try:
+            if pid in [0, 1, os.getpid()]:
+                return jsonify({"success": False, "msg": "不能终止核心系统进程"})
+            p = psutil.Process(pid)
+            p.terminate()
+            return jsonify({"success": True, "msg": f"进程 {pid} ({p.name()}) 已成功结束"})
+        except Exception as e:
+            return jsonify({"success": False, "msg": f"结束失败: {str(e)}"})
+    return jsonify({"success": False, "msg": "无效的 PID"})
+
+# Wi-Fi 扫描接口
+@app.route('/api/wifi/scan')
+def wifi_scan():
+    try:
+        # 尝试 nmcli
+        res = subprocess.run(['sudo', 'nmcli', '-t', '-f', 'SSID,SIGNAL,SECURITY', 'dev', 'wifi', 'list'], capture_output=True, text=True, timeout=5)
+        networks = []
+        seen = set()
+        if res.returncode == 0:
+            for line in res.stdout.strip().split('\n'):
+                if not line: continue
+                parts = line.split(':')
+                if len(parts) >= 2:
+                    ssid = parts[0]
+                    signal = parts[1]
+                    security = parts[2] if len(parts) > 2 else "Open"
+                    if ssid and ssid not in seen:
+                        seen.add(ssid)
+                        networks.append({"ssid": ssid, "signal": signal, "security": security})
+        else:
+            # 回退到 iwlist wlan0 scan
+            raw = run_cmd("sudo iwlist wlan0 scan | grep -E 'ESSID|Signal level'")
+            essids = re.findall(r'ESSID:"([^"]*)"', raw)
+            signals = re.findall(r'Quality=\d+/\d+\s+Signal level=(-?\d+)\s+dBm', raw) or re.findall(r'Signal level=(\d+)/100', raw)
+            for i, ssid in enumerate(essids):
+                if ssid and ssid not in seen:
+                    seen.add(ssid)
+                    sig = signals[i] if i < len(signals) else "50"
+                    networks.append({"ssid": ssid, "signal": sig, "security": "WPA2" if "WPA2" in raw else "Open"})
+        return jsonify({"success": True, "data": networks})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# Wi-Fi 连接接口
+@app.route('/api/wifi/connect', methods=['POST'])
+def wifi_connect():
+    d = request.json
+    ssid = d.get('ssid')
+    password = d.get('password', '')
+    if not ssid:
+        return jsonify({"success": False, "msg": "SSID 不能为空"})
+    try:
+        res_check = subprocess.run(['which', 'nmcli'], capture_output=True)
+        if res_check.returncode == 0:
+            cmd = ['sudo', 'nmcli', 'dev', 'wifi', 'connect', ssid]
+            if password:
+                cmd.extend(['password', password])
+            res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
+            if res.returncode == 0:
+                return jsonify({"success": True, "msg": f"成功连接至 Wi-Fi: {ssid}"})
+            else:
+                return jsonify({"success": False, "msg": res.stderr.strip()})
+        else:
+            # 回退：向 wpa_supplicant 写入配置
+            wpa_conf = f'\nnetwork={{\n    ssid="{ssid}"\n    psk="{password}"\n}}\n'
+            tmp_path = "/tmp/wpa_supplicant_add"
+            with open(tmp_path, 'w') as f:
+                f.write(wpa_conf)
+            subprocess.run(f"cat {tmp_path} | sudo tee -a /etc/wpa_supplicant/wpa_supplicant.conf", shell=True, check=True)
+            subprocess.run("sudo wpa_cli -i wlan0 reconfigure", shell=True)
+            return jsonify({"success": True, "msg": f"网络 {ssid} 配置写入成功并已应用"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 告警 Webhook 设置接口
+@app.route('/api/webhook/set', methods=['POST'])
+def set_webhook():
+    d = request.json
+    url = d.get('webhook_url', '')
+    if save_webhook_url(url):
+        return jsonify({"success": True, "msg": "告警 Webhook 链接已成功保存"})
+    return jsonify({"success": False, "msg": "保存失败，请检查文件写入权限"})
+
+# 文件浏览器列表接口
+@app.route('/api/files/list')
+def list_files():
+    path_param = request.args.get('path', '')
+    target_dir = get_safe_path(path_param)
+    try:
+        items = []
+        for name in os.listdir(target_dir):
+            if name.startswith('.'):
+                continue
+            full_path = os.path.join(target_dir, name)
+            is_dir = os.path.isdir(full_path)
+            size = os.path.getsize(full_path) if not is_dir else 0
+            mtime = os.path.getmtime(full_path)
+            items.append({
+                "name": name,
+                "is_dir": is_dir,
+                "size": size,
+                "mtime": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(mtime))
+            })
+        items.sort(key=lambda x: (not x['is_dir'], x['name'].lower()))
+        rel_dir = os.path.relpath(target_dir, FILE_ROOT)
+        if rel_dir == '.':
+            rel_dir = ''
+        return jsonify({
+            "success": True, 
+            "current_dir": rel_dir,
+            "parent_dir": os.path.relpath(os.path.dirname(target_dir), FILE_ROOT) if rel_dir else None,
+            "files": items
+        })
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 读取文件接口
+@app.route('/api/files/read')
+def read_file_content():
+    path_param = request.args.get('path', '')
+    target_file = get_safe_path(path_param)
+    if os.path.isdir(target_file):
+        return jsonify({"success": False, "msg": "无法读取文件夹内容"})
+    try:
+        size = os.path.getsize(target_file)
+        if size > 1024 * 1024:
+            return jsonify({"success": False, "msg": "文件过大，在线版最多支持查看 1MB 文本"})
+        with open(target_file, 'r', encoding='utf-8', errors='replace') as f:
+            content = f.read()
+        return jsonify({"success": True, "content": content})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 写入文件接口
+@app.route('/api/files/write', methods=['POST'])
+def write_file_content():
+    d = request.json
+    path_param = d.get('path', '')
+    content = d.get('content', '')
+    target_file = get_safe_path(path_param)
+    if os.path.isdir(target_file):
+        return jsonify({"success": False, "msg": "无法写入文件夹"})
+    try:
+        if os.path.exists(target_file):
+            shutil.copyfile(target_file, target_file + '.bak')
+        with open(target_file, 'w', encoding='utf-8') as f:
+            f.write(content)
+        return jsonify({"success": True, "msg": "文件写入成功（已备份原文件）"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 上传文件接口
+@app.route('/api/files/upload', methods=['POST'])
+def upload_file():
+    path_param = request.form.get('path', '')
+    target_dir = get_safe_path(path_param)
+    if 'file' not in request.files:
+        return jsonify({"success": False, "msg": "未检测到上传文件"})
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"success": False, "msg": "文件名为空"})
+    try:
+        filename = secure_filename(file.filename)
+        filename = os.path.basename(filename)
+        dest_path = os.path.join(target_dir, filename)
+        file.save(dest_path)
+        return jsonify({"success": True, "msg": f"文件 {filename} 上传成功"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
 
 @app.route('/api/tool/<name>')
 def tools(name):
@@ -440,7 +688,82 @@ def cron_toggle():
     
     return jsonify({"success": success, "msg": "OK" if success else "Failed"})
 
-# 安全参数化系统调用指令，避免 Shell 注入
+# 立即手动执行一次定时任务
+@app.route('/api/cron/run_once', methods=['POST'])
+def cron_run_once():
+    d = request.json
+    cmd = d.get('command')
+    if not cmd:
+        return jsonify({"success": False, "msg": "未接收到指令内容"})
+    try:
+        def run_bg(c):
+            subprocess.run(c, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        threading.Thread(target=run_bg, args=(cmd,), daemon=True).start()
+        return jsonify({"success": True, "msg": "指令已在系统后台异步触发"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 新增 Cron 定时任务
+@app.route('/api/cron/add', methods=['POST'])
+def cron_add():
+    d = request.json
+    schedule = d.get('schedule')
+    cmd = d.get('command')
+    name = d.get('name', '')
+    if not schedule or not cmd:
+        return jsonify({"success": False, "msg": "时间表达式与执行指令不能为空"})
+    try:
+        if len(schedule.split()) < 5:
+            return jsonify({"success": False, "msg": "Cron 时间表达式格式无效"})
+        raw = run_cmd("sudo crontab -l 2>/dev/null")
+        lines = raw.split('\n') if raw else []
+        if lines and not lines[-1].strip():
+            lines.pop()
+        if name:
+            lines.append(f"# {name}")
+        lines.append(f"{schedule} {cmd}")
+        new_cron = '\n'.join(lines) + '\n'
+        proc = subprocess.Popen(['sudo', 'crontab', '-'], stdin=subprocess.PIPE, text=True)
+        proc.communicate(input=new_cron)
+        return jsonify({"success": True, "msg": "新定时任务添加成功"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
+# 删除 Cron 定时任务
+@app.route('/api/cron/delete', methods=['POST'])
+def cron_delete():
+    d = request.json
+    job_id = d.get('id', '')
+    if not job_id.startswith('cron_') or not job_id.replace('cron_', '').isdigit():
+        return jsonify({"success": False, "msg": "无效的任务 ID"})
+    try:
+        raw = run_cmd("sudo crontab -l 2>/dev/null")
+        lines = raw.split('\n')
+        idx = int(job_id.replace('cron_', ''))
+        count = 0
+        target_line_idx = -1
+        for i, line in enumerate(lines):
+            line_stripped = line.strip()
+            if line_stripped and not line_stripped.startswith('#'):
+                parts = line_stripped.split()
+                if len(parts) >= 6 and parts[0].replace('*','').replace(',','').replace('-','').replace('/','').isdigit():
+                    if count == idx:
+                        target_line_idx = i
+                        break
+                    count += 1
+        if target_line_idx != -1:
+            lines.pop(target_line_idx)
+            # 如果上一行是注释（任务名），也一并移除
+            if target_line_idx > 0 and lines[target_line_idx-1].strip().startswith('#'):
+                lines.pop(target_line_idx-1)
+            new_cron = '\n'.join(lines) + '\n'
+            proc = subprocess.Popen(['sudo', 'crontab', '-'], stdin=subprocess.PIPE, text=True)
+            proc.communicate(input=new_cron)
+            return jsonify({"success": True, "msg": "任务已成功删除"})
+        return jsonify({"success": False, "msg": "未在 Crontab 中定位到该任务"})
+    except Exception as e:
+        return jsonify({"success": False, "msg": str(e)})
+
 @app.route('/api/action', methods=['POST'])
 def action():
     d = request.json

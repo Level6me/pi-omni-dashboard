@@ -11,7 +11,7 @@
     <style>
         :root { --bg: #f2f2f7; --card: #ffffff; --text: #000; --text-sec: #8e8e93; --accent: #007aff; --danger: #ff3b30; --success: #34c759; --dock: rgba(255,255,255,0.85); }
         @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #1c1c1e; --text: #fff; --text-sec: #98989d; --dock: rgba(28,28,30,0.85); } }
-        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding-bottom: 120px; }
+        body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; padding-bottom: calc(120px + env(safe-area-inset-bottom)); }
         .container { padding: 20px 16px; max-width: 600px; margin: 0 auto; padding-top: max(20px, env(safe-area-inset-top)); }
         .header { margin: 20px 0; display: flex; justify-content: space-between; align-items: flex-end; }
         .title { font-size: 34px; font-weight: 700; }
@@ -23,6 +23,7 @@
         .chart-mini { height: 90px; width: 100%; margin-top: 15px; }
         .list-item { padding: 16px 0; border-bottom: 0.5px solid rgba(128,128,128,0.2); display: flex; justify-content: space-between; align-items: center; }
         .list-item:last-child { border-bottom: none; }
+        .list-item.clickable:active { background: rgba(128,128,128,0.1); border-radius: 8px; }
         .ping-row { display: flex; justify-content: space-between; margin-top: 15px; }
         .ping-item { display: flex; flex-direction: column; align-items: center; gap: 5px; font-size: 10px; color: var(--text-sec); }
         .ping-dot { width: 10px; height: 10px; border-radius: 50%; background: #eee; transition: 0.3s; }
@@ -32,7 +33,7 @@
         .dk-name { font-weight: 600; font-size: 15px; }
         .dk-stats { display: flex; gap: 8px; font-size: 11px; color: var(--text-sec); }
         .dk-ctrls { display: flex; gap: 10px; margin-top: 8px; justify-content: flex-end; }
-        .dk-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(128,128,128,0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; }
+        .dk-btn { width: 32px; height: 32px; border-radius: 50%; border: none; background: rgba(128,128,128,0.1); display: flex; align-items: center; justify-content: center; cursor: pointer; color: var(--text); }
         .proc-table { width: 100%; border-collapse: collapse; font-size: 12px; }
         .proc-table th { text-align: left; color: var(--text-sec); font-weight: 600; padding-bottom: 10px; cursor: pointer; }
         .proc-table th.active { color: var(--accent); }
@@ -52,19 +53,29 @@
         input:checked + .slider:before { transform: translateX(20px); }
         select { border:none; background:transparent; text-align:right; font-size:16px; color:var(--accent); outline:none; font-weight:500; }
         .pwr-btn { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 16px; border-radius: 16px; border: none; font-weight: 600; flex: 1; cursor: pointer; }
-        .dock { position: fixed; bottom: 25px; left: 50%; transform: translateX(-50%); width: 380px; height: 65px; background: var(--dock); backdrop-filter: blur(25px); border-radius: 35px; display: flex; justify-content: space-evenly; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 1000; }
-        .dock-btn { border: none; background: none; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; transition: 0.2s; color: var(--text-sec); }
+        
+        /* Dock 安全区适配与自适应宽度 */
+        .dock { position: fixed; bottom: calc(20px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 420px; height: 65px; background: var(--dock); backdrop-filter: blur(25px); border-radius: 35px; display: flex; justify-content: space-evenly; align-items: center; box-shadow: 0 10px 30px rgba(0,0,0,0.15); z-index: 1000; }
+        .dock-btn { border: none; background: none; width: 42px; height: 42px; border-radius: 12px; display: flex; align-items: center; justify-content: center; transition: 0.2s; color: var(--text-sec); }
         .dock-btn.active { color: var(--accent); background: rgba(0,122,255,0.1); }
-        .dock-btn svg { width: 24px; height: 24px; fill: currentColor; }
-        .page { display: none; } .page.active { display: block; }
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 2000; }
-        .modal-card { background: var(--card); width: 85%; max-width: 450px; border-radius: 24px; padding: 24px; max-height: 80vh; display: flex; flex-direction: column; }
+        .dock-btn svg { width: 22px; height: 22px; fill: currentColor; }
+        
+        /* 标签页平滑过渡动画 */
+        .page { display: none; opacity: 0; transition: opacity 0.25s ease-in-out; }
+        .page.active { display: block; opacity: 1; }
+        
+        /* Modal 过渡动效 */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); backdrop-filter: blur(8px); display: none; align-items: center; justify-content: center; z-index: 2000; opacity: 0; transition: opacity 0.2s ease-out; }
+        .modal-overlay.active { opacity: 1; }
+        .modal-card { background: var(--card); width: 85%; max-width: 450px; border-radius: 24px; padding: 24px; max-height: 80vh; display: flex; flex-direction: column; transform: scale(0.9); transition: transform 0.2s cubic-bezier(0.1, 0.8, 0.25, 1); }
+        .modal-overlay.active .modal-card { transform: scale(1); }
+        
         .log-box { background: var(--bg); padding: 14px; border-radius: 12px; font-family: monospace; font-size: 11px; white-space: pre-wrap; margin-top: 15px; overflow-y: auto; flex-grow: 1; }
         .btn { padding: 14px; border-radius: 14px; border: none; font-weight: 600; font-size: 16px; cursor: pointer; width: 100%; margin-top: 15px; }
         .cron-item { padding: 14px 0; border-bottom: 0.5px solid rgba(128,128,128,0.2); display: flex; align-items: center; gap: 12px; }
         .cron-item:last-child { border-bottom: none; }
         .cron-icon { font-size: 20px; width: 32px; text-align: center; }
-        .cron-info { flex: 1; }
+        .cron-info { flex: 1; min-width: 0; }
         .cron-name { font-weight: 600; font-size: 15px; }
         .cron-time { font-size: 12px; color: var(--text-sec); }
         .cron-cmd { font-size: 10px; color: var(--text-sec); font-family: monospace; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 180px; }
@@ -76,6 +87,12 @@
     <div class="header">
         <div><div style="font-size:12px; color:var(--text-sec)" id="date-now">...</div><div class="title" id="page-title">仪表盘</div></div>
         <div style="text-align:right"><div style="font-size:12px; color:var(--success)">● 运行中</div><div style="font-size:11px; opacity:0.5" id="uptime">--</div></div>
+    </div>
+
+    <!-- 系统资源警报 Banner -->
+    <div id="alert-banner" style="display: none; background: rgba(255,59,48,0.15); border: 1px solid var(--danger); color: var(--danger); border-radius: 14px; padding: 14px 18px; margin-bottom: 14px; align-items: center; gap: 10px; font-size: 13px; font-weight: 600;">
+        <span style="font-size: 18px;">⚠️</span>
+        <span id="alert-msg" style="flex: 1;">系统资源异常警报！</span>
     </div>
 
     <!-- 仪表盘页面 -->
@@ -146,21 +163,39 @@
         <div class="card" id="docker-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
         <div class="subtitle">系统服务</div>
         <div class="card" id="serv-list" style="padding:0 20px"></div>
-        <div class="subtitle">SSH 审计</div>
-        <div class="card" id="ssh-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
+    </div>
+
+    <!-- 文件管理页面 -->
+    <div id="p-file" class="page">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="subtitle" style="margin: 20px 0 10px 10px;">📂 文件浏览器</div>
+            <button onclick="showUploadModal()" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">📤 上传</button>
+        </div>
+        <div class="card" style="padding: 12px 16px; margin-bottom: 12px; display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;">
+            <span style="color:var(--text-sec);">当前路径:</span>
+            <span id="file-current-path" style="color:var(--accent); font-family:monospace; word-break:break-all;">/</span>
+        </div>
+        <div class="card" style="padding:0 20px;">
+            <div id="file-list-box">
+                <div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div>
+            </div>
+        </div>
     </div>
 
     <!-- 定时任务页面 -->
     <div id="p-cron" class="page">
-        <div class="subtitle">🕐 Crontab 定时任务</div>
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="subtitle" style="margin: 30px 0 10px 10px;">🕐 Crontab 定时任务</div>
+            <button onclick="showAddCronModal()" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕ 新增</button>
+        </div>
         <div class="card" id="cron-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
-        <div class="subtitle">⏰ Systemd Timer</div>
+        <div class="subtitle" style="margin: 30px 0 10px 10px;">⏰ Systemd Timer</div>
         <div class="card" id="timer-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
     </div>
 
     <!-- 控制中心页面 -->
     <div id="p-ctrl" class="page">
-        <div class="subtitle">网络工具箱</div>
+        <div class="subtitle">网络与诊断工具箱</div>
         <div class="grid">
             <div class="card clickable" style="text-align:center; padding:20px" onclick="runStreamTool('speedtest')">
                 <div style="font-size:24px">⚡</div><div class="proc-name">一键测速</div>
@@ -169,19 +204,45 @@
                 <div style="font-size:24px">🕸️</div><div class="proc-name">局域网扫描</div>
             </div>
         </div>
-        <div class="subtitle">基础控制</div>
+        <div class="grid" style="margin-top:-14px;">
+            <div class="card clickable" style="text-align:center; padding:20px; grid-column: span 2;" onclick="showWiFiManager()">
+                <div style="font-size:24px">📶</div><div class="proc-name">Wi-Fi 网络管理</div>
+            </div>
+        </div>
+        
+        <div class="subtitle">系统服务开关</div>
         <div class="card" style="padding:0 20px">
             <div class="list-item"><span>SSH 服务</span><label class="toggle-switch"><input type="checkbox" id="tg-ssh" onchange="toggleSSH(this)"><span class="slider"></span></label></div>
             <div class="list-item"><span>HDMI 输出</span><label class="toggle-switch"><input type="checkbox" id="tg-hdmi" onchange="toggleHDMI(this)"><span class="slider"></span></label></div>
             <div class="list-item"><span>开机自启</span><label class="toggle-switch"><input type="checkbox" id="tg-boot" onchange="toggleBoot(this)"><span class="slider"></span></label></div>
         </div>
-        <div class="subtitle">维护</div>
+        
+        <div class="subtitle">安全与审计</div>
+        <div class="card" id="ssh-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
+
+        <div class="subtitle">告警与通知设置</div>
+        <div class="card" style="padding: 16px 20px;">
+            <div style="font-size: 12px; color: var(--text-sec); margin-bottom: 8px;">资源占用高时将通过 Webhook 报警 (支持飞书/钉钉格式)</div>
+            <div style="display: flex; gap: 8px;">
+                <input type="text" id="inp-webhook" placeholder="请输入 Webhook 链接..." style="flex: 1; border: none; background: rgba(128,128,128,0.1); padding: 10px 14px; border-radius: 10px; color: var(--text); outline: none; font-size: 13px;">
+                <button onclick="saveWebhook()" style="border: none; background: var(--accent); color: white; padding: 10px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer;">保存</button>
+            </div>
+        </div>
+
+        <div class="subtitle">页面小部件个性化</div>
+        <div class="card" style="padding:0 20px;">
+            <div class="list-item"><span>显示 SSD 温度</span><label class="toggle-switch"><input type="checkbox" id="w-ssd" checked onchange="toggleWidget('ssd', this.checked)"><span class="slider"></span></label></div>
+            <div class="list-item"><span>显示 CPU 核心负载</span><label class="toggle-switch"><input type="checkbox" id="w-cores" checked onchange="toggleWidget('cores', this.checked)"><span class="slider"></span></label></div>
+            <div class="list-item"><span>显示 Docker 容器板块</span><label class="toggle-switch"><input type="checkbox" id="w-docker" checked onchange="toggleWidget('docker', this.checked)"><span class="slider"></span></label></div>
+        </div>
+
+        <div class="subtitle">系统维护</div>
         <div class="card" style="padding:0 20px">
             <div class="list-item"><span>软件源</span><select onchange="changeSource(this.value)"><option value="official">官方源</option><option value="tuna">清华源</option><option value="aliyun">阿里源</option><option value="ustc">中科大</option></select></div>
             <div class="list-item" onclick="askUpdate()"><span>系统更新</span><span style="color:var(--accent);font-weight:600">Update</span></div>
             <div class="list-item" onclick="askAction('clean_log', '清空日志')"><span>日志清理</span><span style="color:var(--accent);font-weight:600">Truncate</span></div>
         </div>
-        <div class="subtitle">电源</div>
+        <div class="subtitle">系统电源</div>
         <div class="grid">
             <button class="pwr-btn" style="background:var(--card); color:var(--accent)" onclick="askAction('reboot','重启')">重启</button>
             <button class="pwr-btn" style="background:var(--card); color:var(--danger)" onclick="askAction('shutdown','关机')">关机</button>
@@ -192,7 +253,20 @@
     <div id="p-proc" class="page">
         <div class="subtitle">CPU Cores</div>
         <div class="card" id="core-list"></div>
-        <div class="subtitle">Process List</div>
+        
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="subtitle" style="margin: 20px 0 10px 10px;">Process List</div>
+        </div>
+        <!-- 搜索与筛选区 -->
+        <div class="card" style="padding: 12px 16px; margin-bottom: 12px; display: flex; gap: 10px; align-items: center;">
+            <input type="text" id="proc-search" placeholder="🔍 搜索进程名称/PID..." style="flex: 1; border: none; background: rgba(128,128,128,0.1); padding: 10px 14px; border-radius: 10px; color: var(--text); outline: none; font-size: 14px; box-sizing: border-box;">
+            <select id="proc-filter-user" style="border: none; background: rgba(128,128,128,0.1); padding: 10px; border-radius: 10px; color: var(--accent); outline: none; font-size: 14px; font-weight: 600;">
+                <option value="all">所有用户</option>
+                <option value="root">root</option>
+                <option value="current">当前用户</option>
+            </select>
+        </div>
+
         <div class="card" style="overflow:hidden">
             <table class="proc-table">
                 <thead><tr><th style="padding-left:15px; width:40%" onclick="setSort('name')">Name</th><th style="width:15%" onclick="setSort('cpu')">CPU</th><th style="width:15%" onclick="setSort('mem')">Mem</th><th style="width:15%" onclick="setSort('disk')">Disk</th><th style="padding-right:15px; width:15%" onclick="setSort('pid')">PID</th></tr></thead>
@@ -202,9 +276,11 @@
     </div>
 </div>
 
+<!-- 底部微调 Dock -->
 <div class="dock">
     <button class="dock-btn active" onclick="nav('dash', this)"><svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg></button>
     <button class="dock-btn" onclick="nav('serv', this)"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.58 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
+    <button class="dock-btn" onclick="nav('file', this)"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
     <button class="dock-btn" onclick="nav('cron', this)"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg></button>
     <button class="dock-btn" onclick="nav('ctrl', this)"><svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg></button>
     <button class="dock-btn" onclick="nav('proc', this)"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm2 2v4h12V6H6zm0 6v6h6v-6H6zm8 0v6h4v-6h-4z"/></svg></button>
@@ -215,26 +291,36 @@
         <h3 id="modal-title" style="margin:0"></h3>
         <div class="log-box" id="modal-content"></div>
         <button class="btn" id="btn-close-main" style="background:var(--accent); color:white" onclick="closeModal()">关闭</button>
-        <div id="confirm-row" style="display:none; margin-top:10px">
-            <button class="btn" style="background:#eee; color:#000; flex:1" onclick="closeModal()">取消</button>
-            <button class="btn" id="btn-confirm" style="background:var(--accent); color:white; flex:1"></button>
+        <div id="confirm-row" style="display:none; margin-top:10px; gap: 10px;">
+            <button class="btn" style="background:#eee; color:#000; flex:1; margin-top:15px;" onclick="closeModal()">取消</button>
+            <button class="btn" id="btn-confirm" style="background:var(--accent); color:white; flex:1; margin-top:15px;"></button>
         </div>
     </div>
 </div>
 
 <script>
     let first=true, blockSync=false, sortKey='cpu', sortOrd=-1, cronLoaded=false, activeTab='dash', tick=0;
+    let rawProcesses = [], currentFilePath = '';
     
+    // Tab 平滑切换
     function nav(id, el) { 
-        $('.page').removeClass('active'); 
-        $('#p-'+id).addClass('active'); 
         $('.dock-btn').removeClass('active'); 
         $(el).addClass('active'); 
-        $('#page-title').text({dash:'仪表盘',serv:'服务',cron:'定时任务',ctrl:'控制中心',proc:'进程管理'}[id]); 
+        $('#page-title').text({dash:'仪表盘',serv:'服务',file:'文件管理',cron:'定时任务',ctrl:'控制中心',proc:'进程管理'}[id]); 
         activeTab = id;
+        
+        $('.page').removeClass('active').css('display', 'none').css('opacity', '0');
+        const $target = $('#p-' + id);
+        $target.css('display', 'block');
+        setTimeout(() => {
+            $target.addClass('active').css('opacity', '1');
+            applyWidgets();
+        }, 30);
+        
         if(id==='cron' && !cronLoaded) loadCron(); 
         if(id==='serv') updateDockers();
         if(id==='proc') updateProcesses();
+        if(id==='file') loadFiles('');
     }
     
     // 定时任务加载
@@ -254,10 +340,14 @@
                             <div class="cron-time">${j.time_desc}</div>
                             <div class="cron-cmd">${j.command}</div>
                         </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" ${j.enabled?'checked':''} onchange="toggleCron('${j.id}', this.checked)">
-                            <span class="slider"></span>
-                        </label>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <button onclick="runCronOnce('${j.command.replace(/'/g, "\\'")}')" title="立即执行一次" style="border:none; background:none; color:var(--success); font-size:16px; cursor:pointer; padding: 4px;">▶</button>
+                            <button onclick="deleteCron('${j.id}')" title="删除任务" style="border:none; background:none; color:var(--danger); font-size:16px; cursor:pointer; padding: 4px;">🗑️</button>
+                            <label class="toggle-switch" style="transform: scale(0.85);">
+                                <input type="checkbox" ${j.enabled?'checked':''} onchange="toggleCron('${j.id}', this.checked)">
+                                <span class="slider"></span>
+                            </label>
+                        </div>
                     </div>`;
                 });
             }
@@ -295,26 +385,130 @@
                 success: d => { if(!d.success) alert('操作失败: ' + (d.msg || '')); },
                 error: () => alert('操作失败') });
     }
+
+    function runCronOnce(cmd) {
+        $.ajax({
+            url: '/api/cron/run_once',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({command: cmd}),
+            success: d => alert(d.msg || '执行成功'),
+            error: () => alert('网络错误，执行失败')
+        });
+    }
+
+    function showAddCronModal() {
+        openModal('新增 Crontab 定时任务', `
+            <div style="display:flex; flex-direction:column; gap:12px; margin-top:10px; text-align:left;">
+                <div>
+                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">任务备注名称</label>
+                    <input type="text" id="cron-add-name" placeholder="例如: 每日日志清理" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">时间表达式 (Cron Expression)</label>
+                    <input type="text" id="cron-add-schedule" placeholder="例如: 0 2 * * *" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+                </div>
+                <div>
+                    <label style="font-size:11px; color:var(--text-sec); display:block; margin-bottom:4px;">运行指令</label>
+                    <input type="text" id="cron-add-cmd" placeholder="例如: /usr/bin/python3 /home/ubuntu/script.py" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+                </div>
+            </div>
+        `);
+        $('#btn-close-main').hide();
+        $('#confirm-row').show();
+        $('#btn-confirm').text('添加').css('background', 'var(--accent)').off('click').on('click', () => {
+            let name = $('#cron-add-name').val();
+            let schedule = $('#cron-add-schedule').val();
+            let cmd = $('#cron-add-cmd').val();
+            if (!schedule || !cmd) {
+                alert('请填写必填的表达式与指令');
+                return;
+            }
+            $.ajax({
+                url: '/api/cron/add',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({name: name, schedule: schedule, command: cmd}),
+                success: d => {
+                    closeModal();
+                    alert(d.msg || '添加成功');
+                    loadCron();
+                },
+                error: () => {
+                    closeModal();
+                    alert('网络请求失败');
+                }
+            });
+        });
+    }
+
+    function deleteCron(id) {
+        openModal('删除任务', '确定要彻底删除此定时任务吗？');
+        $('#btn-close-main').hide();
+        $('#confirm-row').show();
+        $('#btn-confirm').text('删除').css('background', 'var(--danger)').off('click').on('click', () => {
+            $.ajax({
+                url: '/api/cron/delete',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({id: id}),
+                success: d => {
+                    closeModal();
+                    alert(d.msg || '删除成功');
+                    loadCron();
+                },
+                error: () => {
+                    closeModal();
+                    alert('网络请求失败');
+                }
+            });
+        });
+    }
     
-    // 内存图表
-    const memChart = new Chart(document.getElementById('memChart'), { 
+    // Canvas 渐变面积图初始化配置
+    const memCtx = document.getElementById('memChart').getContext('2d');
+    const memGrad = memCtx.createLinearGradient(0, 0, 0, 90);
+    memGrad.addColorStop(0, 'rgba(0, 122, 255, 0.4)');
+    memGrad.addColorStop(1, 'rgba(0, 122, 255, 0.0)');
+    const memChart = new Chart(memCtx, { 
         type: 'line', 
-        data: { labels: Array(30).fill(''), datasets: [{borderColor: '#007aff', borderWidth:2, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
-        options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{}} } 
+        data: { labels: Array(30).fill(''), datasets: [{borderColor: '#007aff', borderWidth:2, backgroundColor: memGrad, fill: true, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
+        options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'var(--text-sec)',font:{size:9}}}} 
     });
-    const netChart = new Chart(document.getElementById('netChart'), { 
+
+    const netCtx = document.getElementById('netChart').getContext('2d');
+    const netGradDown = netCtx.createLinearGradient(0, 0, 0, 90);
+    netGradDown.addColorStop(0, 'rgba(52, 199, 89, 0.3)');
+    netGradDown.addColorStop(1, 'rgba(52, 199, 89, 0.0)');
+    const netGradUp = netCtx.createLinearGradient(0, 0, 0, 90);
+    netGradUp.addColorStop(0, 'rgba(0, 122, 255, 0.3)');
+    netGradUp.addColorStop(1, 'rgba(0, 122, 255, 0.0)');
+    const netChart = new Chart(netCtx, { 
         type: 'line', 
-        data: { labels: Array(30).fill(''), datasets: [{borderColor: '#34c759', borderWidth:2, data:Array(30).fill(0), pointRadius:0, tension:0.4},{borderColor: '#007aff', borderWidth:2, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
+        data: { labels: Array(30).fill(''), datasets: [{borderColor: '#34c759', borderWidth:2, backgroundColor: netGradDown, fill: true, data:Array(30).fill(0), pointRadius:0, tension:0.4},{borderColor: '#007aff', borderWidth:2, backgroundColor: netGradUp, fill: true, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
         options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{display:false}} } 
     });
-    const cpuChart = new Chart(document.getElementById('cpuChart'), { 
+
+    const cpuCtx = document.getElementById('cpuChart').getContext('2d');
+    const cpuGrad = cpuCtx.createLinearGradient(0, 0, 0, 90);
+    cpuGrad.addColorStop(0, 'rgba(255, 59, 48, 0.4)');
+    cpuGrad.addColorStop(1, 'rgba(255, 59, 48, 0.0)');
+    const cpuChart = new Chart(cpuCtx, { 
         type: 'line', 
-        data: { labels: Array(30).fill(''), datasets: [{borderColor: '#ff3b30', borderWidth:2, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
-        options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{min:0,max:100}} } 
+        data: { labels: Array(30).fill(''), datasets: [{borderColor: '#ff3b30', borderWidth:2, backgroundColor: cpuGrad, fill: true, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
+        options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{min:0,max:100,grid:{color:'rgba(128,128,128,0.1)'},ticks:{color:'var(--text-sec)',font:{size:9}}}} 
     });
-    const diskChart = new Chart(document.getElementById('diskChart'), { 
+
+    const diskCtx = document.getElementById('diskChart').getContext('2d');
+    const diskGradR = diskCtx.createLinearGradient(0, 0, 0, 90);
+    diskGradR.addColorStop(0, 'rgba(255, 149, 0, 0.3)');
+    diskGradR.addColorStop(1, 'rgba(255, 149, 0, 0.0)');
+    const diskGradW = diskCtx.createLinearGradient(0, 0, 0, 90);
+    diskGradW.addColorStop(0, 'rgba(175, 82, 222, 0.3)');
+    diskGradW.addColorStop(1, 'rgba(175, 82, 222, 0.0)');
+    const diskChart = new Chart(diskCtx, { 
         type: 'line', 
-        data: { labels: Array(30).fill(''), datasets: [{borderColor: '#ff9500', borderWidth:2, data:Array(30).fill(0), pointRadius:0, tension:0.4},{borderColor: '#af52de', borderWidth:2, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
+        data: { labels: Array(30).fill(''), datasets: [{borderColor: '#ff9500', borderWidth:2, backgroundColor: diskGradR, fill: true, data:Array(30).fill(0), pointRadius:0, tension:0.4},{borderColor: '#af52de', borderWidth:2, backgroundColor: diskGradW, fill: true, data:Array(30).fill(0), pointRadius:0, tension:0.4}] }, 
         options: { responsive:true, maintainAspectRatio:false, animation:false, plugins:{legend:{display:false}}, scales:{x:{display:false},y:{display:false}} } 
     });
     
@@ -335,6 +529,22 @@
             $('#uptime').text('UP: '+d.uptime); 
             $('#date-now').text(new Date().toLocaleTimeString());
             
+            // 系统资源警报 Banner 业务逻辑
+            let alertMsg = [];
+            if (parseFloat(d.cpu.temp) > 80.0) alertMsg.push(`CPU 温度达到 ${d.cpu.temp}°C`);
+            if (parseFloat(d.disk.p) > 90.0) alertMsg.push(`磁盘空间占用已达 ${d.disk.p}%`);
+            
+            if (alertMsg.length > 0) {
+                $('#alert-msg').text('异常警报：' + alertMsg.join(' | '));
+                $('#alert-banner').css('display', 'flex');
+            } else {
+                $('#alert-banner').hide();
+            }
+
+            if(first && d.webhook_url) {
+                $('#inp-webhook').val(d.webhook_url);
+            }
+
             for(let k in d.net.pings) { 
                 $(`#p-${k=='gateway'?'gw':(k=='baidu'?'bd':(k=='github'?'gh':'gg'))}`).removeClass('ok bad').addClass(d.net.pings[k]>-1?'ok':'bad'); 
             }
@@ -382,13 +592,12 @@
             if(first){ 
                 $.getJSON('/api/tool/ssh_log', d=>{ 
                     let h=''; d.data.forEach(l=>h+=`<div class="list-item"><span>${l.user} @ ${l.ip}</span><span style="font-size:12px;color:#8e8e93">${l.time}</span></div>`); 
-                    $('#ssh-list').html(h||'<div style="text-align:center;padding:10px;color:#8e8e93">No records</div>'); 
+                    $('#ssh-list').html(h||'<div style="text-align:center;padding:10px;color:#8e8e93">暂无登录记录</div>'); 
                 });
                 first=false; 
             }
         });
 
-        // 慢速数据更新
         if (activeTab === 'serv' && tick % 3 === 0) {
             updateDockers();
         }
@@ -414,17 +623,306 @@
         });
     }
 
+    // 渲染带有搜索、筛选与结束进程功能的表格
     function updateProcesses() {
         $.getJSON('/api/processes', d => {
             if (!d.processes) return;
-            let procs = d.processes.sort((a,b) => { 
-                let valA = a[sortKey], valB = b[sortKey]; 
-                return (valA < valB ? -1 : 1) * sortOrd; 
+            rawProcesses = d.processes;
+            renderProcesses();
+        });
+    }
+
+    function renderProcesses() {
+        let query = $('#proc-search').val().toLowerCase();
+        let userFilter = $('#proc-filter-user').val();
+        
+        let filtered = rawProcesses.filter(p => {
+            let matchQuery = p.name.toLowerCase().includes(query) || String(p.pid).includes(query);
+            let matchUser = true;
+            if (userFilter === 'root') {
+                matchUser = p.user === 'root';
+            } else if (userFilter === 'current') {
+                matchUser = p.user !== 'root';
+            }
+            return matchQuery && matchUser;
+        });
+
+        let procs = filtered.sort((a,b) => { 
+            let valA = a[sortKey], valB = b[sortKey]; 
+            return (valA < valB ? -1 : 1) * sortOrd; 
+        });
+        
+        let pH = ''; 
+        procs.forEach(p => { 
+            pH += `<tr>
+                <td style="padding-left:15px"><span class="proc-name">${p.name}</span><span class="proc-pid">${p.user}</span></td>
+                <td>${p.cpu.toFixed(1)}%</td>
+                <td>${p.mem}%</td>
+                <td>${fmtDisk(p.disk)}</td>
+                <td>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <span>${p.pid}</span>
+                        <button onclick="killProc(${p.pid}, '${p.name}')" style="border:none; background:none; color:var(--danger); font-size:14px; cursor:pointer; padding:2px 6px; border-radius:4px; transition:0.2s;">✕</button>
+                    </div>
+                </td>
+            </tr>`; 
+        }); 
+        $('#proc-body').html(pH || '<tr><td colspan="5" style="text-align:center; padding:20px; color:var(--text-sec)">无匹配的进程</td></tr>');
+    }
+
+    $('#proc-search').on('input', renderProcesses);
+    $('#proc-filter-user').on('change', renderProcesses);
+
+    function killProc(pid, name) {
+        openModal('结束进程', `确定要结束进程 <b>${name} (PID: ${pid})</b> 吗？`);
+        $('#btn-close-main').hide();
+        $('#confirm-row').show();
+        $('#btn-confirm').text('结束').css('background', 'var(--danger)').off('click').on('click', () => {
+            $.ajax({
+                url: '/api/process/kill',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({pid: pid}),
+                success: d => {
+                    closeModal();
+                    alert(d.msg);
+                    updateProcesses();
+                },
+                error: () => {
+                    closeModal();
+                    alert('网络异常，操作失败');
+                }
             });
-            let pH = ''; procs.forEach(p => { 
-                pH += `<tr><td style="padding-left:15px"><span class="proc-name">${p.name}</span><span class="proc-pid">${p.user}</span></td><td>${p.cpu.toFixed(1)}%</td><td>${p.mem}%</td><td>${fmtDisk(p.disk)}</td><td>${p.pid}</td></tr>`; 
-            }); 
-            $('#proc-body').html(pH);
+        });
+    }
+
+    // Wi-Fi 扫描与连接模块
+    function showWiFiManager() {
+        openModal('Wi-Fi 网络管理', '<div style="padding:10px;text-align:center;color:#8e8e93">正在扫描 Wi-Fi 列表中...</div>');
+        $.getJSON('/api/wifi/scan', d => {
+            if (d.success && d.data && d.data.length > 0) {
+                let h = '<div style="display:flex; flex-direction:column; gap:10px; margin-top:10px; text-align:left; max-height:50vh; overflow-y:auto;">';
+                d.data.forEach(net => {
+                    h += `<div class="list-item" style="padding:10px 0; display:flex; justify-content:space-between; align-items:center;">
+                        <div>
+                            <div style="font-weight:600; font-size:14px;">${net.ssid}</div>
+                            <div style="font-size:11px; color:var(--text-sec);">${net.security}</div>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <span style="font-size:11px; font-weight:600; color:var(--text-sec);">${net.signal}%</span>
+                            <button onclick="connectWiFi('${net.ssid}', '${net.security}')" style="border:none; background:var(--accent); color:white; font-size:12px; padding:6px 12px; border-radius:8px; cursor:pointer;">连接</button>
+                        </div>
+                    </div>`;
+                });
+                h += '</div>';
+                $('#modal-content').html(h);
+            } else {
+                $('#modal-content').html('<div style="padding:20px;text-align:center;color:var(--danger)">未扫描到无线网络，或系统无线网卡已被禁用。</div>');
+            }
+        });
+    }
+
+    function connectWiFi(ssid, security) {
+        let isSecured = security && security !== 'Open';
+        if (isSecured) {
+            openModal(`连接至 Wi-Fi: ${ssid}`, `
+                <div style="text-align:left; margin-top:10px;">
+                    <label style="font-size:12px; color:var(--text-sec); display:block; margin-bottom:4px;">请输入 Wi-Fi 密码</label>
+                    <input type="password" id="wifi-pass" placeholder="Password" style="width:100%; border:none; background:rgba(128,128,128,0.1); padding:10px; border-radius:10px; color:var(--text); box-sizing:border-box; outline:none;">
+                </div>
+            `);
+            $('#btn-close-main').hide();
+            $('#confirm-row').show();
+            $('#btn-confirm').text('连接').css('background', 'var(--accent)').off('click').on('click', () => {
+                let pass = $('#wifi-pass').val();
+                doConnectWiFi(ssid, pass);
+            });
+        } else {
+            doConnectWiFi(ssid, '');
+        }
+    }
+
+    function doConnectWiFi(ssid, pass) {
+        openModal('正在连接', `正在尝试连接至网络 <b>${ssid}</b>...`);
+        $.ajax({
+            url: '/api/wifi/connect',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({ssid: ssid, password: pass}),
+            success: d => { openModal('连接结果', d.msg); },
+            error: () => { openModal('连接错误', '请求网络失败'); }
+        });
+    }
+
+    // Webhook 保存函数
+    function saveWebhook() {
+        let url = $('#inp-webhook').val().trim();
+        $.ajax({
+            url: '/api/webhook/set',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({webhook_url: url}),
+            success: d => alert(d.msg),
+            error: () => alert('接口错误，保存失败')
+        });
+    }
+
+    // 小部件个性化控制
+    function toggleWidget(type, visible) {
+        localStorage.setItem('widget_' + type, visible ? '1' : '0');
+        applyWidgets();
+    }
+
+    function applyWidgets() {
+        const showSsd = localStorage.getItem('widget_ssd') !== '0';
+        const showCores = localStorage.getItem('widget_cores') !== '0';
+        const showDocker = localStorage.getItem('widget_docker') !== '0';
+        
+        $('#w-ssd').prop('checked', showSsd);
+        $('#w-cores').prop('checked', showCores);
+        $('#w-docker').prop('checked', showDocker);
+        
+        // 渲染显示隐藏状态
+        const $ssdCard = $('#v-ssd-temp').closest('.card');
+        if (showSsd) $ssdCard.show(); else $ssdCard.hide();
+        
+        const $coresCard = $('#core-list').closest('.card');
+        const $coresSub = $coresCard.prev('.subtitle');
+        if (showCores) { $coresCard.show(); $coresSub.show(); } else { $coresCard.hide(); $coresSub.hide(); }
+        
+        const $dockerCard = $('#docker-list').closest('.card');
+        const $dockerSub = $dockerCard.prev('.subtitle');
+        if (showDocker) { $dockerCard.show(); $dockerSub.show(); } else { $dockerCard.hide(); $dockerSub.hide(); }
+    }
+
+    // 文件管理模块
+    function loadFiles(path) {
+        $.getJSON('/api/files/list', {path: path}, d => {
+            if (d.success) {
+                currentFilePath = d.current_dir;
+                $('#file-current-path').text('/' + d.current_dir);
+                
+                let h = '';
+                if (d.parent_dir !== null) {
+                    h += `<div class="list-item clickable" onclick="loadFiles('${d.parent_dir}')" style="font-weight:600; color:var(--accent);">
+                        <span>📁 .. (返回上一级)</span>
+                        <span></span>
+                    </div>`;
+                }
+                
+                if (d.files.length === 0) {
+                    h += '<div style="padding:20px;text-align:center;color:#8e8e93">此文件夹为空</div>';
+                } else {
+                    d.files.forEach(f => {
+                        let icon = f.is_dir ? '📁' : '📄';
+                        let sizeStr = f.is_dir ? '' : fmtFileSize(f.size);
+                        let action = f.is_dir ? `loadFiles('${currentFilePath ? currentFilePath + '/' + f.name : f.name}')` : `openFileEditor('${currentFilePath ? currentFilePath + '/' + f.name : f.name}', '${f.name}')`;
+                        
+                        h += `<div class="list-item clickable" onclick="${action}">
+                            <div>
+                                <span style="margin-right:8px;">${icon}</span>
+                                <span style="font-weight:600; font-size:14px;">${f.name}</span>
+                                <div style="font-size:10px; color:var(--text-sec); margin-top:2px;">${f.mtime}</div>
+                            </div>
+                            <span style="font-size:12px; color:var(--text-sec); font-weight:500;">${sizeStr}</span>
+                        </div>`;
+                    });
+                }
+                $('#file-list-box').html(h);
+            } else {
+                $('#file-list-box').html(`<div style="padding:20px;text-align:center;color:var(--danger)">加载失败: ${d.msg}</div>`);
+            }
+        });
+    }
+
+    function fmtFileSize(bytes) {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    }
+
+    function openFileEditor(path, name) {
+        openModal(`正在读取 ${name}...`, '<div style="padding:10px;text-align:center;color:#8e8e93">正在加载文件内容...</div>');
+        $.getJSON('/api/files/read', {path: path}, d => {
+            if (d.success) {
+                openModal(`编辑文件: ${name}`, `
+                    <textarea id="file-editor-content" style="width:100%; height:320px; border:none; background:var(--bg); color:var(--text); padding:10px; border-radius:10px; font-family:monospace; font-size:12px; box-sizing:border-box; outline:none; resize:none;">${escapeHtml(d.content)}</textarea>
+                `);
+                $('#btn-close-main').hide();
+                $('#confirm-row').show();
+                $('#btn-confirm').text('保存').css('background', 'var(--success)').off('click').on('click', () => {
+                    let newContent = $('#file-editor-content').val();
+                    $.ajax({
+                        url: '/api/files/write',
+                        type: 'POST',
+                        contentType: 'application/json',
+                        data: JSON.stringify({path: path, content: newContent}),
+                        success: res => {
+                            closeModal();
+                            alert(res.msg);
+                            loadFiles(currentFilePath);
+                        },
+                        error: () => {
+                            closeModal();
+                            alert('保存文件失败');
+                        }
+                    });
+                });
+            } else {
+                openModal('读取失败', d.msg);
+            }
+        });
+    }
+
+    function escapeHtml(text) {
+        return text
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;")
+            .replace(/'/g, "&#039;");
+    }
+
+    function showUploadModal() {
+        openModal('上传文件', `
+            <div style="text-align:left; margin-top:10px; display:flex; flex-direction:column; gap:12px;">
+                <div style="font-size:12px; color:var(--text-sec);">将文件上传至：<b>/${currentFilePath}</b></div>
+                <input type="file" id="file-upload-input" style="font-size:14px; color:var(--text); padding: 8px 0;">
+            </div>
+        `);
+        $('#btn-close-main').hide();
+        $('#confirm-row').show();
+        $('#btn-confirm').text('开始上传').css('background', 'var(--accent)').off('click').on('click', () => {
+            let fileInput = document.getElementById('file-upload-input');
+            if (fileInput.files.length === 0) {
+                alert('请选择需要上传的文件');
+                return;
+            }
+            let file = fileInput.files[0];
+            let formData = new FormData();
+            formData.append('file', file);
+            formData.append('path', currentFilePath);
+            
+            openModal('正在上传文件', `正在上传 <b>${file.name}</b>，请稍候...`);
+            
+            $.ajax({
+                url: '/api/files/upload',
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: d => {
+                    closeModal();
+                    alert(d.msg);
+                    loadFiles(currentFilePath);
+                },
+                error: () => {
+                    closeModal();
+                    alert('上传失败');
+                }
+            });
         });
     }
 
@@ -465,22 +963,27 @@
     }
 
     function openModal(t, c) { 
-        $('#modal-title').text(t); 
+        $('#modal-title').html(t); 
         $('#modal-content').html(c); 
-        $('#modal').css('display','flex'); 
+        $('#modal').css('display', 'flex');
+        setTimeout(() => { $('#modal').addClass('active'); }, 10);
         $('#confirm-row').hide(); 
         $('#btn-close-main').show();
     }
     
-    function closeModal() { $('#modal').hide(); }
+    function closeModal() { 
+        $('#modal').removeClass('active');
+        setTimeout(() => { $('#modal').css('display', 'none'); }, 200);
+    }
     
     function askAction(c, n, v=null) { 
         $('#modal-title').text('确认'); 
         $('#modal-content').text('确定要'+n+'?'); 
-        $('#modal').css('display','flex'); 
+        $('#modal').css('display','flex');
+        setTimeout(() => { $('#modal').addClass('active'); }, 10);
         $('#btn-close-main').hide();
         $('#confirm-row').show(); 
-        $('#btn-confirm').text('确认').off('click').on('click', ()=>{ 
+        $('#btn-confirm').text('确认').css('background', 'var(--accent)').off('click').on('click', () => { 
             $.ajax({url:'/api/action', type:'POST', contentType:'application/json', data:JSON.stringify({cmd:c, val:v}), success: d=>{ closeModal(); alert(d.log || d.error || 'Done'); }}); 
         }); 
     }
@@ -491,14 +994,14 @@
         openModal('系统更新', '流量预警！确认执行 apt update？'); 
         $('#btn-close-main').hide();
         $('#confirm-row').show(); 
-        $('#btn-confirm').text('确认').off('click').on('click', startUpdate); 
+        $('#btn-confirm').text('确认').css('background', 'var(--accent)').off('click').on('click', startUpdate); 
     }
     
     function changeSource(v) { 
         openModal('切换软件源', '切换后将自动更新'); 
         $('#btn-close-main').hide();
         $('#confirm-row').show(); 
-        $('#btn-confirm').text('确认').off('click').on('click', ()=>{ 
+        $('#btn-confirm').text('确认').css('background', 'var(--accent)').off('click').on('click', ()=>{ 
             $.ajax({url:'/api/action', type:'POST', contentType:'application/json', data:JSON.stringify({cmd:'ch_source', val:v}), success: d=>{ if(d.log=='source_changed') startUpdate(); }}); 
         }); 
     }
@@ -513,8 +1016,11 @@
     
     function showLog(n) { openModal(n+' 日志', 'Loading...'); $.getJSON('/api/service_log/'+n, d=>$('#modal-content').text(d.log)); }
 
-    setInterval(update, 1000); 
-    update();
+    $(document).ready(() => {
+        applyWidgets();
+        setInterval(update, 1000); 
+        update();
+    });
 </script>
 </body>
 </html>
