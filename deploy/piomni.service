@@ -7,6 +7,7 @@ Type=simple
 User={{USER}}
 Group={{GROUP}}
 WorkingDirectory={{DIR}}
+Environment=PORT={{PORT}}
 ExecStart={{DIR}}/venv/bin/python {{DIR}}/app.py
 Restart=always
 RestartSec=5
