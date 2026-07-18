@@ -943,17 +943,14 @@ def api_benchmark():
     
     def generate():
         start = time.time()
-        yield ">>> 正在初始化测试环境...
-"
+        yield ">>> 正在初始化测试环境...\n"
         time.sleep(0.1)
         
         if bench_type == 'cpu_prime':
-            yield ">>> [任务] 测试 CPU 单核整数与质数运算
-"
+            yield ">>> [任务] 测试 CPU 单核整数与质数运算\n"
             count = 0
             limit = 20000
-            yield ">>> 开始第一阶段计算 (0-10000)...
-"
+            yield ">>> 开始第一阶段计算 (0-10000)...\n"
             for num in range(2, 10000):
                 is_prime = True
                 for i in range(2, int(math.sqrt(num)) + 1):
@@ -961,11 +958,9 @@ def api_benchmark():
                         is_prime = False
                         break
                 if is_prime: count += 1
-            yield f">>> [50%] 已计算 10000 区间，发现 {count} 个质数
-"
+            yield f">>> [50%] 已计算 10000 区间，发现 {count} 个质数\n"
             
-            yield ">>> 开始第二阶段计算 (10000-20000)...
-"
+            yield ">>> 开始第二阶段计算 (10000-20000)...\n"
             for num in range(10000, limit):
                 is_prime = True
                 for i in range(2, int(math.sqrt(num)) + 1):
@@ -973,96 +968,72 @@ def api_benchmark():
                         is_prime = False
                         break
                 if is_prime: count += 1
-            yield f">>> [100%] 计算完成，总计发现 {count} 个质数
-"
+            yield f">>> [100%] 计算完成，总计发现 {count} 个质数\n"
             
             duration = time.time() - start
             score = int(1000 / (duration if duration > 0.001 else 0.001))
-            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒
-"
-            yield f"RESULT_SCORE:{score}
-"
+            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒\n"
+            yield f"RESULT_SCORE:{score}\n"
             
         elif bench_type == 'cpu_float':
-            yield ">>> [任务] 测试 CPU 浮点数与三角函数矩阵能力
-"
+            yield ">>> [任务] 测试 CPU 浮点数与三角函数矩阵能力\n"
             val = 0.5
-            yield ">>> 执行前 200 万次正弦/余弦运算...
-"
+            yield ">>> 执行前 200 万次正弦/余弦运算...\n"
             for _ in range(2000000): val = math.sin(val) + math.cos(val)
-            yield ">>> [50%] 前半部分运算完成
-"
+            yield ">>> [50%] 前半部分运算完成\n"
             
-            yield ">>> 执行后 200 万次高精度运算...
-"
+            yield ">>> 执行后 200 万次高精度运算...\n"
             for _ in range(2000000): val = math.sin(val) + math.cos(val)
-            yield ">>> [100%] 浮点测试完成
-"
+            yield ">>> [100%] 浮点测试完成\n"
             
             duration = time.time() - start
             score = int(2000 / (duration if duration > 0.001 else 0.001))
-            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒
-"
-            yield f"RESULT_SCORE:{score}
-"
+            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒\n"
+            yield f"RESULT_SCORE:{score}\n"
             
         elif bench_type == 'disk_io':
-            yield ">>> [任务] 测试磁盘底层 I/O 读写吞吐量
-"
+            yield ">>> [任务] 测试磁盘底层 I/O 读写吞吐量\n"
             test_file = '/tmp/bench_test.dat'
             data = b'0' * 1024 * 1024 * 5
-            yield ">>> 正在写入测试文件 (总计 25MB)...
-"
+            yield ">>> 正在写入测试文件 (总计 25MB)...\n"
             try:
                 with open(test_file, 'wb') as f:
                     for i in range(5):
                         f.write(data)
                         f.flush()
                         os.fsync(f.fileno())
-                        yield f">>> 写入进度: {(i+1)*20}%
-"
+                        yield f">>> 写入进度: {(i+1)*20}%\n"
                 
-                yield ">>> 正在进行连续读取测试...
-"
+                yield ">>> 正在进行连续读取测试...\n"
                 with open(test_file, 'rb') as f:
                     while f.read(1024 * 1024 * 5):
                         pass
-                yield ">>> [100%] 读取完毕，正在清理测试碎片...
-"
+                yield ">>> [100%] 读取完毕，正在清理测试碎片...\n"
                 os.remove(test_file)
             except Exception as e:
-                yield f">>> [错误] 读写异常: {str(e)}
-"
+                yield f">>> [错误] 读写异常: {str(e)}\n"
             
             duration = time.time() - start
             score = int(500 / (duration if duration > 0.001 else 0.001))
-            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒
-"
-            yield f"RESULT_SCORE:{score}
-"
+            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒\n"
+            yield f"RESULT_SCORE:{score}\n"
             
         elif bench_type == 'mem_bw':
-            yield ">>> [任务] 测试内存总线带宽吞吐
-"
-            yield ">>> 正在向系统申请并初始化 300 万个整数数组...
-"
+            yield ">>> [任务] 测试内存总线带宽吞吐\n"
+            yield ">>> 正在向系统申请并初始化 300 万个整数数组...\n"
             arr = [0] * 3000000
             for i in range(len(arr)):
                 arr[i] = i
-            yield ">>> [50%] 内存大块写操作完毕，准备执行逆向寻址与反转...
-"
+            yield ">>> [50%] 内存大块写操作完毕，准备执行逆向寻址与反转...\n"
             
             arr.reverse()
-            yield ">>> [100%] 内存指针重分配完成，正在释放内存...
-"
+            yield ">>> [100%] 内存指针重分配完成，正在释放内存...\n"
             del arr
             
             duration = time.time() - start
             score = int(800 / (duration if duration > 0.001 else 0.001))
-            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒
-"
-            yield f"RESULT_SCORE:{score}
-"
+            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒\n"
+            yield f"RESULT_SCORE:{score}\n"
 
     return Response(generate(), mimetype='text/plain')
 
