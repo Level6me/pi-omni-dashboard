@@ -1375,7 +1375,7 @@
 
 
     function openOpensslModal() {
-        $('#modal-openssl').show();
+        $('#modal-openssl').css('display', 'flex');
         setTimeout(() => $('#modal-openssl').addClass('active'), 10);
         $('#ossl-terminal').hide();
     }
