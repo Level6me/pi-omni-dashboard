@@ -46,7 +46,7 @@ function do_update() {
     if [ ! -d "$DEPLOY_DIR" ]; then
         echo -e "${RED}未找到部署目录 $DEPLOY_DIR，请先使用 install 命令进行安装。${NC}"
         exit 1
-    }
+    fi
     
     rm -rf "$REPO_DIR"
     git clone "$REPO_URL" "$REPO_DIR"
