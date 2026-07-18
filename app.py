@@ -1010,11 +1010,6 @@ def action():
             
     return jsonify({"log": log})
 
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
-
-
 @app.route('/api/openssl_bench', methods=['POST'])
 def api_openssl_bench():
     req = request.json or {}
@@ -1056,3 +1051,10 @@ def api_openssl_bench():
             yield f"\n>>> [致命错误] 执行失败: {str(e)}\n"
             
     return Response(generate(), mimetype='text/plain')
+
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
+
+
+
