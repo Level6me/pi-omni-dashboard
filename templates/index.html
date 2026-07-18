@@ -1444,8 +1444,7 @@
                 if (done) break;
                 
                 let chunk = decoder.decode(value, { stream: true });
-                let lines = chunk.split('
-');
+                let lines = chunk.split('\n');
                 
                 for(let line of lines) {
                     if(!line.trim()) continue;
@@ -1453,16 +1452,14 @@
                         $('#bench-score').text(line.replace('RESULT_SCORE:', '').trim());
                         $('#bench-time').text('测试结束');
                     } else {
-                        $('#bench-logs').append(line + '
-');
+                        $('#bench-logs').append(line + '\n');
                         let box = document.getElementById('bench-logs');
                         box.scrollTop = box.scrollHeight;
                     }
                 }
             }
         } catch(e) {
-            $('#bench-logs').append('
-[Error] 请求终端或发生异常: ' + e);
+            $('#bench-logs').append('\n[Error] 请求终端或发生异常: ' + e);
         }
 
         $(btn).find('.ctrl-card-title').text(oldText).css('color', '');
