@@ -23,11 +23,25 @@ pi-omni-dashboard/
 └── README.md              # 项目使用说明书
 ```
 
-## 部署与安装
+## 🚀 一键部署与管理
 
-在终端执行以下指令即可一键部署并启动服务：
+本项目支持极其简便的在线一键部署、更新与卸载，全部自动配置虚拟环境与 systemd 服务。
 
+### 1. 首次部署安装
+在终端直接执行以下指令：
 ```bash
-chmod +x deploy/install.sh
-sudo ./deploy/install.sh
+bash <(curl -sL https://raw.githubusercontent.com/Level6me/pi-omni-dashboard/main/install.sh)
+```
+*部署完成后可通过 `http://<您的IP>:5000` 访问。*
+
+### 2. 更新最新代码
+当云端有新版本代码时，您可以通过该命令一键热更新并重启服务：
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/Level6me/pi-omni-dashboard/main/install.sh) update
+```
+
+### 3. 完全卸载
+若需清理该面板及其所有产生的文件与后台进程：
+```bash
+bash <(curl -sL https://raw.githubusercontent.com/Level6me/pi-omni-dashboard/main/install.sh) uninstall
 ```
