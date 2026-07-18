@@ -884,6 +884,60 @@ def cron_delete():
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)})
 
+import platform
+import math
+import time
+
+@app.route('/api/hardware')
+def api_hardware():
+    info = {}
+    try:
+        info["OS System"] = platform.system() + " " + platform.release()
+        info["Node Name"] = platform.node()
+        info["Architecture"] = platform.machine()
+        
+        mem = psutil.virtual_memory()
+        info["Total Memory"] = f"{mem.total / (1024**3):.2f} GB"
+        
+        if platform.system() == 'Linux':
+            cpu_model = run_cmd("cat /proc/cpuinfo | grep 'model name' | head -n 1").split(':')[-1].strip()
+            if not cpu_model:
+                cpu_model = run_cmd("cat /proc/cpuinfo | grep 'Hardware' | head -n 1").split(':')[-1].strip()
+            if cpu_model:
+                info["CPU Model"] = cpu_model
+            
+            rev = run_cmd("cat /proc/cpuinfo | grep 'Revision' | head -n 1").split(':')[-1].strip()
+            if rev: 
+                info["Board Revision"] = rev
+    except Exception as e:
+        pass
+    
+    info["CPU Cores"] = f"{psutil.cpu_count(logical=False)} Physical / {psutil.cpu_count(logical=True)} Logical"
+    
+    return jsonify(info)
+
+@app.route('/api/benchmark', methods=['POST'])
+def api_benchmark():
+    start = time.time()
+    count = 0
+    limit = 50000
+    for num in range(2, limit):
+        is_prime = True
+        for i in range(2, int(math.sqrt(num)) + 1):
+            if num % i == 0:
+                is_prime = False
+                break
+        if is_prime:
+            count += 1
+            
+    duration = time.time() - start
+    score = int(1000 / (duration if duration > 0.001 else 0.001))
+    
+    return jsonify({
+        "score": score,
+        "time_ms": int(duration * 1000)
+    })
+
 @app.route('/api/action', methods=['POST'])
 def action():
     d = request.json

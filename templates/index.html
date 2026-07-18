@@ -6,8 +6,72 @@
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
     <title>Pi Omni v38</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js">
+    function loadHw() {
+        $.getJSON('/api/hardware', d => {
+            let h = '';
+            for (let [k,v] of Object.entries(d)) {
+                h += `<div class="list-item"><span style="color:var(--text-sec); font-size:14px; font-weight:500;">${k}</span><span style="font-weight:700; font-size:15px; text-align:right; max-width:60%; line-height:1.4;">${v}</span></div>`;
+            }
+            $('#hw-content').html(h);
+            hwLoaded = true;
+        });
+    }
+    
+    function initBench() {
+        $('#bench-result').hide();
+    }
+    
+    function runBenchmark(btn) {
+        let oldText = $(btn).text();
+        $(btn).text('正在疯狂计算中...').prop('disabled', true).css('opacity', 0.6);
+        $('#bench-result').hide();
+        
+        $.post('/api/benchmark', {}, res => {
+            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
+            $('#bench-score').text(res.score);
+            $('#bench-time').text(`耗时: ${res.time_ms} 毫秒`);
+            $('#bench-result').show();
+        }).fail(() => {
+            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
+            alert('跑分请求失败，请检查后端运行状态。');
+        });
+    }
+
+</script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js">
+    function loadHw() {
+        $.getJSON('/api/hardware', d => {
+            let h = '';
+            for (let [k,v] of Object.entries(d)) {
+                h += `<div class="list-item"><span style="color:var(--text-sec); font-size:14px; font-weight:500;">${k}</span><span style="font-weight:700; font-size:15px; text-align:right; max-width:60%; line-height:1.4;">${v}</span></div>`;
+            }
+            $('#hw-content').html(h);
+            hwLoaded = true;
+        });
+    }
+    
+    function initBench() {
+        $('#bench-result').hide();
+    }
+    
+    function runBenchmark(btn) {
+        let oldText = $(btn).text();
+        $(btn).text('正在疯狂计算中...').prop('disabled', true).css('opacity', 0.6);
+        $('#bench-result').hide();
+        
+        $.post('/api/benchmark', {}, res => {
+            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
+            $('#bench-score').text(res.score);
+            $('#bench-time').text(`耗时: ${res.time_ms} 毫秒`);
+            $('#bench-result').show();
+        }).fail(() => {
+            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
+            alert('跑分请求失败，请检查后端运行状态。');
+        });
+    }
+
+</script>
     <style>
         :root { --bg: #f2f2f7; --card: #ffffff; --text: #000; --text-sec: #8e8e93; --accent: #007aff; --danger: #ff3b30; --success: #34c759; --dock: rgba(255,255,255,0.85); }
         @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #1c1c1e; --text: #fff; --text-sec: #98989d; --dock: rgba(28,28,30,0.85); } }
@@ -184,10 +248,7 @@
         <div class="card" id="serv-list" style="padding:0 20px"></div>
     </div>
 
-    <!-- 文件管理页面 -->
-    <div id="p-file" class="page">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-            <div class="subtitle" style="margin: 20px 0 10px 10px;">📂 网页文件管理器</div>
+    
             <div style="display:flex; gap:12px;">
                 <button onclick="createFileOrDir(false)" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕文件</button>
                 <button onclick="createFileOrDir(true)" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕目录</button>
@@ -205,10 +266,7 @@
         </div>
     </div>
 
-    <!-- 定时任务页面 -->
-    <div class="page" id="p-cron">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
-            <div class="subtitle" style="margin: 30px 0 10px 10px;">🕐 Crontab 定时任务</div>
+    
             <button onclick="showAddCronModal()" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕ 新增</button>
         </div>
         <div class="card" id="cron-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
@@ -216,8 +274,46 @@
         <div class="card" id="timer-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
     </div>
 
+    
+    <!-- 硬件参数页面 -->
+    <div id="p-hw" class="page">
+        <div class="subtitle">系统硬件与规格 (Hardware Info)</div>
+        <div class="card" style="padding:0 20px;">
+            <div id="hw-content">
+                <div style="padding:20px;text-align:center;color:#8e8e93">Loading Hardware...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 设备性能测试页面 -->
+    <div id="p-bench" class="page">
+        <div class="subtitle">性能测试实验室 (Benchmark)</div>
+        <div class="card" style="text-align:center; padding:40px 20px; margin-top:10px;">
+            <div style="font-size:56px; margin-bottom:15px;">🚀</div>
+            <div style="font-weight:800; font-size:22px; margin-bottom:8px;">设备综合跑分计算</div>
+            <div style="color:var(--text-sec); font-size:14px; margin-bottom:30px; line-height:1.5;">通过执行密集的质数计算来压测 CPU 的算力与吞吐量，并对设备性能进行打分。</div>
+            <button class="btn" style="background:var(--accent); color:white; width:80%; max-width:280px; margin:0 auto; font-size:18px; padding:16px; border-radius:18px;" onclick="runBenchmark(this)">🔥 立即跑分</button>
+            <div id="bench-result" style="margin-top:30px; display:none;">
+                <div style="font-size:14px; color:var(--text-sec); margin-bottom:5px;">计算得分</div>
+                <div style="font-weight:900; font-size:42px; color:var(--success); font-variant-numeric: tabular-nums;" id="bench-score">0</div>
+                <div style="font-size:12px; color:var(--text-sec); margin-top:8px;" id="bench-time"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- 控制中心页面 -->
     <div id="p-ctrl" class="page">
+        
+        <div class="subtitle">高级管理</div>
+        <div class="grid">
+            <div class="card clickable ctrl-card" onclick="openFileModal()">
+                <div style="font-size:28px">📂</div><div class="ctrl-card-title">文件管理</div>
+            </div>
+            <div class="card clickable ctrl-card" onclick="openCronModal()">
+                <div style="font-size:28px">🕐</div><div class="ctrl-card-title">定时任务</div>
+            </div>
+        </div>
+
         <div class="subtitle">网络与诊断工具箱</div>
         <div class="grid">
             <div class="card clickable ctrl-card" onclick="runStreamTool('speedtest')">
@@ -298,8 +394,8 @@
 <div class="dock">
     <button class="dock-btn active" onclick="nav('dash', this)"><svg viewBox="0 0 24 24"><path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/></svg></button>
     <button class="dock-btn" onclick="nav('serv', this)"><svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.58 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg></button>
-    <button class="dock-btn" onclick="nav('file', this)"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg></button>
-    <button class="dock-btn" onclick="nav('cron', this)"><svg viewBox="0 0 24 24"><path d="M11.99 2C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8zm.5-13H11v6l5.25 3.15.75-1.23-4.5-2.67z"/></svg></button>
+    <button class="dock-btn" onclick="nav(\'hw\', this)"><svg viewBox="0 0 24 24"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm-2 14H6V6h12v12zm-3-2h2v-2h-2v2zm0-4h2v-2h-2v2zm0-4h2V6h-2v2zM7 16h2v-2H7v2zm0-4h2v-2H7v2zm0-4h2V6H7v2z"/></svg></button>
+    <button class="dock-btn" onclick="nav(\'bench\', this)"><svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 14h-2v-2h2v2zm0-4h-2V7h2v5z"/></svg></button>
     <button class="dock-btn" onclick="nav('ctrl', this)"><svg viewBox="0 0 24 24"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg></button>
     <button class="dock-btn" onclick="nav('proc', this)"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4V4zm2 2v4h12V6H6zm0 6v6h6v-6H6zm8 0v6h4v-6h-4z"/></svg></button>
 </div>
@@ -317,15 +413,74 @@
     </div>
 </div>
 
+
+<div class="modal-overlay" id="modal-file" style="align-items:flex-end;">
+    <div class="modal-card" style="height:90vh; width:100%; border-radius:24px 24px 0 0; padding:15px; margin:0; max-width:none; max-height:none; overflow-y:auto; background:var(--bg);">
+       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+           <h3 style="margin:0;">文件管理</h3>
+           <button onclick="$('#modal-file').removeClass('active'); setTimeout(()=>$('#modal-file').hide(), 200)" style="border:none;background:rgba(128,128,128,0.1);border-radius:50%;width:30px;height:30px;font-size:16px;color:var(--text);display:flex;align-items:center;justify-content:center;">✕</button>
+       </div>
+       
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+            <div class="subtitle" style="margin: 0 0 10px 5px;">📂 网页文件管理器</div>
+            <div style="display:flex; gap:12px;">
+                <button onclick="createFileOrDir(false)" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕文件</button>
+                <button onclick="createFileOrDir(true)" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕目录</button>
+                <button onclick="showUploadModal()" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">📤 上传</button>
+            </div>
+        </div>
+        <div class="card" style="padding: 12px 16px; margin-bottom: 12px; display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;">
+            <span style="color:var(--text-sec);">当前路径:</span>
+            <span id="file-current-path" style="color:var(--accent); font-family:monospace; word-break:break-all;">/</span>
+        </div>
+        <div class="card" style="padding:0 20px;">
+            <div id="file-list-box">
+                <div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div>
+            </div>
+        </div>
+    
+    </div>
+</div>
+
+<div class="modal-overlay" id="modal-cron" style="align-items:flex-end;">
+    <div class="modal-card" style="height:90vh; width:100%; border-radius:24px 24px 0 0; padding:15px; margin:0; max-width:none; max-height:none; overflow-y:auto; background:var(--bg);">
+       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+           <h3 style="margin:0;">定时任务</h3>
+           <button onclick="$('#modal-cron').removeClass('active'); setTimeout(()=>$('#modal-cron').hide(), 200)" style="border:none;background:rgba(128,128,128,0.1);border-radius:50%;width:30px;height:30px;font-size:16px;color:var(--text);display:flex;align-items:center;justify-content:center;">✕</button>
+       </div>
+       
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px;">
+            <div class="subtitle" style="margin: 10px 0 10px 5px;">🕐 Crontab 定时任务</div>
+            <button onclick="showAddCronModal()" style="border:none; background:none; color:var(--accent); font-weight:600; font-size:14px; cursor:pointer;">➕ 新增</button>
+        </div>
+        <div class="card" id="cron-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
+        <div class="subtitle" style="margin: 10px 0 10px 5px;">⏰ Systemd Timer</div>
+        <div class="card" id="timer-list" style="padding:0 20px"><div style="padding:20px;text-align:center;color:#8e8e93">Loading...</div></div>
+    
+    </div>
+</div>
+
 <script>
-    let first=true, blockSync=false, sortKey='cpu', sortOrd=-1, cronLoaded=false, activeTab='dash', tick=0;
+    
+    function openFileModal() {
+        $('#modal-file').css('display', 'flex');
+        setTimeout(() => $('#modal-file').addClass('active'), 10);
+        loadFiles('');
+    }
+    function openCronModal() {
+        $('#modal-cron').css('display', 'flex');
+        setTimeout(() => $('#modal-cron').addClass('active'), 10);
+        if(!cronLoaded) loadCron();
+    }
+
+    let first=true, blockSync=false, sortKey='cpu', sortOrd=-1, cronLoaded=false, hwLoaded=false, activeTab='dash', tick=0;
     let rawProcesses = [], currentFilePath = '';
     
     // Tab 平滑切换
     function nav(id, el) { 
         $('.dock-btn').removeClass('active'); 
         $(el).addClass('active'); 
-        $('#page-title').text({dash:'仪表盘',serv:'服务',file:'文件管理',cron:'定时任务',ctrl:'控制中心',proc:'进程管理'}[id]); 
+        $('#page-title').text({dash:'仪表盘',serv:'服务',hw:'硬件参数',bench:'设备性能测试',ctrl:'控制中心',proc:'进程管理'}[id]); 
         activeTab = id;
         
         $('.page').removeClass('active').css('display', 'none').css('opacity', '0');
@@ -336,10 +491,10 @@
             applyWidgets();
         }, 30);
         
-        if(id==='cron' && !cronLoaded) loadCron(); 
+         
         if(id==='serv') updateDockers();
         if(id==='proc') updateProcesses();
-        if(id==='file') loadFiles('');
+        if(id==='hw' && !hwLoaded) loadHw(); if(id==='bench') initBench();
     }
     
     // 定时任务加载
@@ -1306,6 +1461,38 @@
         setInterval(update, 500); 
         update();
     });
+
+    function loadHw() {
+        $.getJSON('/api/hardware', d => {
+            let h = '';
+            for (let [k,v] of Object.entries(d)) {
+                h += `<div class="list-item"><span style="color:var(--text-sec); font-size:14px; font-weight:500;">${k}</span><span style="font-weight:700; font-size:15px; text-align:right; max-width:60%; line-height:1.4;">${v}</span></div>`;
+            }
+            $('#hw-content').html(h);
+            hwLoaded = true;
+        });
+    }
+    
+    function initBench() {
+        $('#bench-result').hide();
+    }
+    
+    function runBenchmark(btn) {
+        let oldText = $(btn).text();
+        $(btn).text('正在疯狂计算中...').prop('disabled', true).css('opacity', 0.6);
+        $('#bench-result').hide();
+        
+        $.post('/api/benchmark', {}, res => {
+            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
+            $('#bench-score').text(res.score);
+            $('#bench-time').text(`耗时: ${res.time_ms} 毫秒`);
+            $('#bench-result').show();
+        }).fail(() => {
+            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
+            alert('跑分请求失败，请检查后端运行状态。');
+        });
+    }
+
 </script>
 </body>
 </html>
