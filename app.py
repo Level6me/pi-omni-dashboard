@@ -941,64 +941,130 @@ def api_benchmark():
     req = request.json or {}
     bench_type = req.get('type', 'cpu_prime')
     
-    start = time.time()
-    score = 0
-    
-    if bench_type == 'cpu_prime':
-        count = 0
-        limit = 50000
-        for num in range(2, limit):
-            is_prime = True
-            for i in range(2, int(math.sqrt(num)) + 1):
-                if num % i == 0:
-                    is_prime = False
-                    break
-            if is_prime:
-                count += 1
-        duration = time.time() - start
-        score = int(1000 / (duration if duration > 0.001 else 0.001))
+    def generate():
+        start = time.time()
+        yield ">>> 正在初始化测试环境...
+"
+        time.sleep(0.1)
         
-    elif bench_type == 'cpu_float':
-        val = 0.5
-        for _ in range(5000000):
-            val = math.sin(val) + math.cos(val)
-        duration = time.time() - start
-        score = int(2000 / (duration if duration > 0.001 else 0.001))
-        
-    elif bench_type == 'disk_io':
-        test_file = '/tmp/bench_test.dat'
-        data = b'0' * 1024 * 1024 * 10
-        try:
-            with open(test_file, 'wb') as f:
-                for _ in range(5):
-                    f.write(data)
-                    f.flush()
-                    os.fsync(f.fileno())
-            with open(test_file, 'rb') as f:
-                while f.read(1024 * 1024 * 10):
-                    pass
-            os.remove(test_file)
-        except:
-            pass
-        duration = time.time() - start
-        score = int(500 / (duration if duration > 0.001 else 0.001))
-        
-    elif bench_type == 'mem_bw':
-        arr = [0] * 5000000
-        for i in range(len(arr)):
-            arr[i] = i
-        arr.reverse()
-        duration = time.time() - start
-        score = int(800 / (duration if duration > 0.001 else 0.001))
-        
-    else:
-        duration = 0
-        score = 0
-        
-    return jsonify({
-        "score": score,
-        "time_ms": int(duration * 1000)
-    })
+        if bench_type == 'cpu_prime':
+            yield ">>> [任务] 测试 CPU 单核整数与质数运算
+"
+            count = 0
+            limit = 20000
+            yield ">>> 开始第一阶段计算 (0-10000)...
+"
+            for num in range(2, 10000):
+                is_prime = True
+                for i in range(2, int(math.sqrt(num)) + 1):
+                    if num % i == 0:
+                        is_prime = False
+                        break
+                if is_prime: count += 1
+            yield f">>> [50%] 已计算 10000 区间，发现 {count} 个质数
+"
+            
+            yield ">>> 开始第二阶段计算 (10000-20000)...
+"
+            for num in range(10000, limit):
+                is_prime = True
+                for i in range(2, int(math.sqrt(num)) + 1):
+                    if num % i == 0:
+                        is_prime = False
+                        break
+                if is_prime: count += 1
+            yield f">>> [100%] 计算完成，总计发现 {count} 个质数
+"
+            
+            duration = time.time() - start
+            score = int(1000 / (duration if duration > 0.001 else 0.001))
+            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒
+"
+            yield f"RESULT_SCORE:{score}
+"
+            
+        elif bench_type == 'cpu_float':
+            yield ">>> [任务] 测试 CPU 浮点数与三角函数矩阵能力
+"
+            val = 0.5
+            yield ">>> 执行前 200 万次正弦/余弦运算...
+"
+            for _ in range(2000000): val = math.sin(val) + math.cos(val)
+            yield ">>> [50%] 前半部分运算完成
+"
+            
+            yield ">>> 执行后 200 万次高精度运算...
+"
+            for _ in range(2000000): val = math.sin(val) + math.cos(val)
+            yield ">>> [100%] 浮点测试完成
+"
+            
+            duration = time.time() - start
+            score = int(2000 / (duration if duration > 0.001 else 0.001))
+            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒
+"
+            yield f"RESULT_SCORE:{score}
+"
+            
+        elif bench_type == 'disk_io':
+            yield ">>> [任务] 测试磁盘底层 I/O 读写吞吐量
+"
+            test_file = '/tmp/bench_test.dat'
+            data = b'0' * 1024 * 1024 * 5
+            yield ">>> 正在写入测试文件 (总计 25MB)...
+"
+            try:
+                with open(test_file, 'wb') as f:
+                    for i in range(5):
+                        f.write(data)
+                        f.flush()
+                        os.fsync(f.fileno())
+                        yield f">>> 写入进度: {(i+1)*20}%
+"
+                
+                yield ">>> 正在进行连续读取测试...
+"
+                with open(test_file, 'rb') as f:
+                    while f.read(1024 * 1024 * 5):
+                        pass
+                yield ">>> [100%] 读取完毕，正在清理测试碎片...
+"
+                os.remove(test_file)
+            except Exception as e:
+                yield f">>> [错误] 读写异常: {str(e)}
+"
+            
+            duration = time.time() - start
+            score = int(500 / (duration if duration > 0.001 else 0.001))
+            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒
+"
+            yield f"RESULT_SCORE:{score}
+"
+            
+        elif bench_type == 'mem_bw':
+            yield ">>> [任务] 测试内存总线带宽吞吐
+"
+            yield ">>> 正在向系统申请并初始化 300 万个整数数组...
+"
+            arr = [0] * 3000000
+            for i in range(len(arr)):
+                arr[i] = i
+            yield ">>> [50%] 内存大块写操作完毕，准备执行逆向寻址与反转...
+"
+            
+            arr.reverse()
+            yield ">>> [100%] 内存指针重分配完成，正在释放内存...
+"
+            del arr
+            
+            duration = time.time() - start
+            score = int(800 / (duration if duration > 0.001 else 0.001))
+            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒
+"
+            yield f"RESULT_SCORE:{score}
+"
+
+    return Response(generate(), mimetype='text/plain')
 
 @app.route('/api/action', methods=['POST'])
 def action():

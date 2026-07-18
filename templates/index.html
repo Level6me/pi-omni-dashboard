@@ -1410,36 +1410,63 @@
         $('#bench-result-card').hide();
     }
     
-    function runBenchmark(type, btn) {
+    async function runBenchmark(type, btn) {
         let oldText = $(btn).find('.ctrl-card-title').text();
-        $(btn).find('.ctrl-card-title').text('计算中...').css('color', 'var(--accent)');
+        $(btn).find('.ctrl-card-title').text('正在测试...').css('color', 'var(--accent)');
         $(btn).css('opacity', 0.6).css('pointer-events', 'none');
-        $('#bench-result-card').hide();
         
-        $.ajax({
-            url: '/api/benchmark',
-            type: 'POST',
-            contentType: 'application/json',
-            data: JSON.stringify({type: type}),
-            success: res => {
-                $(btn).find('.ctrl-card-title').text(oldText).css('color', '');
-                $(btn).css('opacity', 1).css('pointer-events', 'auto');
+        $('#bench-title').text(oldText + ' 详细运行日志');
+        $('#bench-score').text('--');
+        $('#bench-time').text('测试执行中...');
+        $('#bench-result-card').fadeIn();
+        
+        if($('#bench-logs').length === 0) {
+            $('<div id="bench-logs" style="text-align:left; background:#1c1c1e; color:#34c759; padding:15px; border-radius:12px; font-family:monospace; font-size:12px; margin-bottom:20px; white-space:pre-wrap; max-height:220px; overflow-y:auto; box-shadow:inset 0 2px 8px rgba(0,0,0,0.2);"></div>').insertBefore('#bench-result');
+        }
+        $('#bench-logs').empty();
+        
+        $('html, body').animate({
+            scrollTop: $("#bench-result-card").offset().top - 100
+        }, 500);
+
+        try {
+            const response = await fetch('/api/benchmark', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ type: type })
+            });
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder("utf-8");
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
                 
-                $('#bench-title').text(oldText + ' 得分');
-                $('#bench-score').text(res.score);
-                $('#bench-time').text(`耗时: ${res.time_ms} 毫秒`);
-                $('#bench-result-card').fadeIn();
+                let chunk = decoder.decode(value, { stream: true });
+                let lines = chunk.split('
+');
                 
-                $('html, body').animate({
-                    scrollTop: $("#bench-result-card").offset().top - 100
-                }, 500);
-            },
-            error: () => {
-                $(btn).find('.ctrl-card-title').text(oldText).css('color', '');
-                $(btn).css('opacity', 1).css('pointer-events', 'auto');
-                alert('跑分请求失败，请检查后端运行状态。');
+                for(let line of lines) {
+                    if(!line.trim()) continue;
+                    if(line.startsWith('RESULT_SCORE:')) {
+                        $('#bench-score').text(line.replace('RESULT_SCORE:', '').trim());
+                        $('#bench-time').text('测试结束');
+                    } else {
+                        $('#bench-logs').append(line + '
+');
+                        let box = document.getElementById('bench-logs');
+                        box.scrollTop = box.scrollHeight;
+                    }
+                }
             }
-        });
+        } catch(e) {
+            $('#bench-logs').append('
+[Error] 请求终端或发生异常: ' + e);
+        }
+
+        $(btn).find('.ctrl-card-title').text(oldText).css('color', '');
+        $(btn).css('opacity', 1).css('pointer-events', 'auto');
     }
 
 </script>
