@@ -1425,8 +1425,8 @@
             
             <div style="margin-top:15px;">
                 <div style="margin-bottom:10px;">
-                    <label style="font-size:12px; color:var(--text-sec); display:block; margin-bottom:5px;">加密算法 (Algorithm)</label>
-                    <select id="ossl-algo" class="input-style" style="width:100%; padding:8px; border-radius:8px; background:var(--bg); color:var(--text); border:1px solid rgba(128,128,128,0.2); outline:none;">
+                    <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-sec); display:block; margin-bottom:4px;">加密算法 (Algorithm)</label>
+                    <select id="ossl-algo" style="width:100%; padding:5px 8px; font-size:13px; font-weight:500; border-radius:6px; background:rgba(128,128,128,0.06); color:var(--text); border:1px solid rgba(128,128,128,0.15); outline:none;">
                         <option value="aes-128-cbc">AES-128-CBC (基础区块加密)</option>
                         <option value="aes-256-cbc">AES-256-CBC (高强度区块加密)</option>
                         <option value="aes-128-gcm">AES-128-GCM (带认证的流加密)</option>
@@ -1437,16 +1437,16 @@
                 
                 <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
                     <div>
-                        <label style="font-size:12px; color:var(--text-sec); display:block; margin-bottom:5px;">区块测试时长</label>
-                        <select id="ossl-time" class="input-style" style="width:100%; padding:8px; border-radius:8px; background:var(--bg); color:var(--text); border:1px solid rgba(128,128,128,0.2); outline:none;">
+                        <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-sec); display:block; margin-bottom:4px;">区块测试时长</label>
+                        <select id="ossl-time" style="width:100%; padding:5px 8px; font-size:13px; font-weight:500; border-radius:6px; background:rgba(128,128,128,0.06); color:var(--text); border:1px solid rgba(128,128,128,0.15); outline:none;">
                             <option value="1">快速 (1秒)</option>
                             <option value="3" selected>标准 (3秒)</option>
                             <option value="10">深度极限 (10秒)</option>
                         </select>
                     </div>
                     <div>
-                        <label style="font-size:12px; color:var(--text-sec); display:block; margin-bottom:5px;">硬件引擎加速</label>
-                        <select id="ossl-evp" class="input-style" style="width:100%; padding:8px; border-radius:8px; background:var(--bg); color:var(--text); border:1px solid rgba(128,128,128,0.2); outline:none;">
+                        <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-sec); display:block; margin-bottom:4px;">硬件引擎加速</label>
+                        <select id="ossl-evp" style="width:100%; padding:5px 8px; font-size:13px; font-weight:500; border-radius:6px; background:rgba(128,128,128,0.06); color:var(--text); border:1px solid rgba(128,128,128,0.15); outline:none;">
                             <option value="1" selected>开启 (EVP API)</option>
                             <option value="0">关闭 (纯软件)</option>
                         </select>
@@ -1454,8 +1454,8 @@
                 </div>
                 
                 <div style="margin-bottom:15px;">
-                    <label style="font-size:12px; color:var(--text-sec); display:block; margin-bottom:5px;">并发线程 (-multi)</label>
-                    <select id="ossl-multi" class="input-style" style="width:100%; padding:8px; border-radius:8px; background:var(--bg); color:var(--text); border:1px solid rgba(128,128,128,0.2); outline:none;">
+                    <label style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-sec); display:block; margin-bottom:4px;">并发线程 (-multi)</label>
+                    <select id="ossl-multi" style="width:100%; padding:5px 8px; font-size:13px; font-weight:500; border-radius:6px; background:rgba(128,128,128,0.06); color:var(--text); border:1px solid rgba(128,128,128,0.15); outline:none;">
                         <option value="1">单核 (默认单线程)</option>
                         <option value="2">双核 (2 线程并发)</option>
                         <option value="4">四核满载 (4 线程并发)</option>
