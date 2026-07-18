@@ -197,43 +197,60 @@
         </div>
     </div>
 
-            <!-- 设备性能测试页面 -->
+                <!-- 设备性能测试页面 -->
     <div id="p-bench" class="page">
-        <div class="subtitle">性能测试实验室 (Benchmark)</div>
+        <div class="subtitle">极客性能实验室 (Geek Benchmarks)</div>
+        <div style="color:var(--text-sec); font-size:13px; margin:0 0 20px 10px; line-height:1.5;">轻触下方测试项，在终端视窗中观察最底层的硬件表现。</div>
         
-        <div class="grid">
-            <div class="card clickable ctrl-card" onclick="runBenchmark('cpu_prime', this)" style="text-align:center; padding:25px 15px;">
-                <div style="font-size:32px">🧠</div>
-                <div class="ctrl-card-title" style="margin-top:10px;">CPU 质数算力</div>
-                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">密集逻辑运算</div>
+        <div class="grid" style="grid-template-columns: repeat(2, minmax(0, 1fr)); gap:16px;">
+            <div class="card clickable ctrl-card bench-card" onclick="runBenchmark('cpu_prime', this)" style="background: linear-gradient(135deg, #1e3c72, #2a5298); color:#fff; border:none; padding:20px 15px; text-align:center;">
+                <div style="font-size:36px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">🧠</div>
+                <div class="ctrl-card-title" style="margin-top:12px; color:#fff; font-weight:700;">CPU 质数算力</div>
+                <div style="font-size:10px; opacity:0.8; margin-top:6px;">密集逻辑整数运算</div>
             </div>
-            <div class="card clickable ctrl-card" onclick="runBenchmark('cpu_float', this)" style="text-align:center; padding:25px 15px;">
-                <div style="font-size:32px">🧮</div>
-                <div class="ctrl-card-title" style="margin-top:10px;">浮点矩阵运算</div>
-                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">三角函数与浮点数</div>
+            
+            <div class="card clickable ctrl-card bench-card" onclick="runBenchmark('cpu_float', this)" style="background: linear-gradient(135deg, #4b1248, #f0c27b); color:#fff; border:none; padding:20px 15px; text-align:center;">
+                <div style="font-size:36px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">🧮</div>
+                <div class="ctrl-card-title" style="margin-top:12px; color:#fff; font-weight:700;">浮点矩阵运算</div>
+                <div style="font-size:10px; opacity:0.8; margin-top:6px;">三角函数与浮点 FPU</div>
             </div>
-            <div class="card clickable ctrl-card" onclick="runBenchmark('disk_io', this)" style="text-align:center; padding:25px 15px;">
-                <div style="font-size:32px">💾</div>
-                <div class="ctrl-card-title" style="margin-top:10px;">磁盘 I/O 读写</div>
-                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">50MB 顺序读写测试</div>
+            
+            <div class="card clickable ctrl-card bench-card" onclick="runBenchmark('mem_bw', this)" style="background: linear-gradient(135deg, #cb2d3e, #ef473a); color:#fff; border:none; padding:20px 15px; text-align:center;">
+                <div style="font-size:36px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">🚀</div>
+                <div class="ctrl-card-title" style="margin-top:12px; color:#fff; font-weight:700;">内存总线吞吐</div>
+                <div style="font-size:10px; opacity:0.8; margin-top:6px;">千万级大阵列寻址反转</div>
             </div>
-            <div class="card clickable ctrl-card" onclick="runBenchmark('mem_bw', this)" style="text-align:center; padding:25px 15px;">
-                <div style="font-size:32px">🚀</div>
-                <div class="ctrl-card-title" style="margin-top:10px;">内存带宽吞吐</div>
-                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">大数组分配与反转</div>
+
+            <div class="card clickable ctrl-card bench-card" onclick="runBenchmark('disk_io', this)" style="background: linear-gradient(135deg, #11998e, #38ef7d); color:#fff; border:none; padding:20px 15px; text-align:center;">
+                <div style="font-size:36px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));">💾</div>
+                <div class="ctrl-card-title" style="margin-top:12px; color:#fff; font-weight:700;">磁盘 I/O 读写</div>
+                <div style="font-size:10px; opacity:0.8; margin-top:6px;">顺序写入与随机碎片化读取</div>
             </div>
-            <div class="card clickable ctrl-card" onclick="runBenchmark('openssl_aes', this)" style="text-align:center; padding:25px 15px;">
-                <div style="font-size:32px">🔐</div>
-                <div class="ctrl-card-title" style="margin-top:10px;">AES 加解密</div>
-                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">OpenSSL 性能压测</div>
+
+            <div class="card clickable ctrl-card bench-card" onclick="runBenchmark('openssl_aes', this)" style="background: linear-gradient(135deg, #232526, #414345); color:#fff; border:none; grid-column: span 2; padding:20px 15px; text-align:center;">
+                <div style="font-size:36px; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">🔐</div>
+                <div class="ctrl-card-title" style="margin-top:12px; color:#fff; font-weight:700;">OpenSSL 加解密极限</div>
+                <div style="font-size:11px; opacity:0.8; margin-top:6px;">硬件 AES-CBC 密码学加速原生压测</div>
             </div>
         </div>
-        <div class="card" style="text-align:center; padding:30px 20px; margin-top:10px; display:none;" id="bench-result-card">
-            <div style="font-weight:800; font-size:18px; margin-bottom:15px;" id="bench-title">跑分结果</div>
-            <div id="bench-result">
-                <div style="font-size:14px; color:var(--text-sec); margin-bottom:5px;">计算综合得分</div>
-                <div style="font-weight:900; font-size:42px; color:var(--success); font-variant-numeric: tabular-nums;" id="bench-score">0</div>
-                <div style="font-size:12px; color:var(--text-sec); margin-top:8px;" id="bench-time"></div>
+        
+        <!-- Mac-like Terminal Result Card -->
+        <div id="bench-result-card" style="margin-top:30px; display:none; border-radius:12px; overflow:hidden; box-shadow:0 15px 35px rgba(0,0,0,0.2); background:#1e1e1e;">
+            <!-- Terminal Header -->
+            <div style="background:#333; padding:12px 15px; display:flex; align-items:center; border-bottom:1px solid #444;">
+                <div style="display:flex; gap:8px;">
+                    <div style="width:12px; height:12px; border-radius:50%; background:#ff5f56;"></div>
+                    <div style="width:12px; height:12px; border-radius:50%; background:#ffbd2e;"></div>
+                    <div style="width:12px; height:12px; border-radius:50%; background:#27c93f;"></div>
+                </div>
+                <div style="flex:1; text-align:center; color:#ccc; font-size:13px; font-weight:600; font-family:-apple-system, sans-serif; letter-spacing:0.5px;" id="bench-title">root@raspberrypi:~</div>
+            </div>
+            <!-- Terminal Body -->
+            <div id="bench-logs" style="padding:20px; color:#00ff00; font-family:'Menlo', 'Monaco', 'Courier New', monospace; font-size:12px; white-space:pre-wrap; max-height:300px; overflow-y:auto; line-height:1.6; background:transparent;"></div>
+            <!-- Final Metric Display -->
+            <div id="bench-final-result" style="background:rgba(0,0,0,0.4); padding:20px; text-align:center; border-top:1px dashed #555; display:none;">
+                <div style="font-size:12px; color:#999; margin-bottom:8px; text-transform:uppercase; letter-spacing:1px;">FINAL METRIC</div>
+                <div style="font-weight:900; font-size:36px; color:#00ff00; font-variant-numeric:tabular-nums; text-shadow:0 0 15px rgba(0,255,0,0.3);" id="bench-score">--</div>
             </div>
         </div>
     </div>
@@ -1416,21 +1433,19 @@
     
     async function runBenchmark(type, btn) {
         let oldText = $(btn).find('.ctrl-card-title').text();
-        $(btn).find('.ctrl-card-title').text('正在测试...').css('color', 'var(--accent)');
-        $(btn).css('opacity', 0.6).css('pointer-events', 'none');
+        $(btn).find('.ctrl-card-title').text('>> 执行中 <<');
+        $(btn).css('opacity', 0.7).css('pointer-events', 'none').css('transform', 'scale(0.97)');
         
-        $('#bench-title').text(oldText + ' 详细运行日志');
+        $('#bench-title').text('pi-omni: ' + type);
         $('#bench-score').text('--');
-        $('#bench-time').text('测试执行中...');
+        $('#bench-final-result').hide();
         $('#bench-result-card').fadeIn();
         
-        if($('#bench-logs').length === 0) {
-            $('<div id="bench-logs" style="text-align:left; background:#1c1c1e; color:#34c759; padding:15px; border-radius:12px; font-family:monospace; font-size:12px; margin-bottom:20px; white-space:pre-wrap; max-height:220px; overflow-y:auto; box-shadow:inset 0 2px 8px rgba(0,0,0,0.2);"></div>').insertBefore('#bench-result');
-        }
-        $('#bench-logs').empty();
+        let $logs = $('#bench-logs');
+        $logs.empty();
         
         $('html, body').animate({
-            scrollTop: $("#bench-result-card").offset().top - 100
+            scrollTop: $("#bench-result-card").offset().top - 80
         }, 500);
 
         try {
@@ -1452,22 +1467,22 @@
                 
                 for(let line of lines) {
                     if(!line.trim()) continue;
-                    if(line.startsWith('RESULT_SCORE:')) {
-                        $('#bench-score').text(line.replace('RESULT_SCORE:', '').trim());
-                        $('#bench-time').text('测试结束');
+                    if(line.startsWith('RESULT_TEXT:')) {
+                        $('#bench-score').text(line.replace('RESULT_TEXT:', '').trim());
+                        $('#bench-final-result').slideDown();
                     } else {
-                        $('#bench-logs').append(line + '\n');
+                        $logs.append(line + '\n');
                         let box = document.getElementById('bench-logs');
                         box.scrollTop = box.scrollHeight;
                     }
                 }
             }
         } catch(e) {
-            $('#bench-logs').append('\n[Error] 请求终端或发生异常: ' + e);
+            $logs.append('\n[Error] System panic: ' + e);
         }
 
-        $(btn).find('.ctrl-card-title').text(oldText).css('color', '');
-        $(btn).css('opacity', 1).css('pointer-events', 'auto');
+        $(btn).find('.ctrl-card-title').text(oldText);
+        $(btn).css('opacity', 1).css('pointer-events', 'auto').css('transform', 'scale(1)');
     }
 
 </script>

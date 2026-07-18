@@ -1160,7 +1160,7 @@ def api_benchmark():
         else:
             yield "未知测试项。\n"
             
-        yield f"RESULT_SCORE:{score}\n"
+        yield f"RESULT_TEXT:{ops_per_sec:.0f} OPS\n"
 
     return Response(generate(), mimetype='text/plain')
 
