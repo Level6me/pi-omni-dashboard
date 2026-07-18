@@ -6,72 +6,8 @@
     <meta name="theme-color" content="#f2f2f7" media="(prefers-color-scheme: light)">
     <meta name="theme-color" content="#000000" media="(prefers-color-scheme: dark)">
     <title>Pi Omni v38</title>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js">
-    function loadHw() {
-        $.getJSON('/api/hardware', d => {
-            let h = '';
-            for (let [k,v] of Object.entries(d)) {
-                h += `<div class="list-item"><span style="color:var(--text-sec); font-size:14px; font-weight:500;">${k}</span><span style="font-weight:700; font-size:15px; text-align:right; max-width:60%; line-height:1.4;">${v}</span></div>`;
-            }
-            $('#hw-content').html(h);
-            hwLoaded = true;
-        });
-    }
-    
-    function initBench() {
-        $('#bench-result').hide();
-    }
-    
-    function runBenchmark(btn) {
-        let oldText = $(btn).text();
-        $(btn).text('正在疯狂计算中...').prop('disabled', true).css('opacity', 0.6);
-        $('#bench-result').hide();
-        
-        $.post('/api/benchmark', {}, res => {
-            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
-            $('#bench-score').text(res.score);
-            $('#bench-time').text(`耗时: ${res.time_ms} 毫秒`);
-            $('#bench-result').show();
-        }).fail(() => {
-            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
-            alert('跑分请求失败，请检查后端运行状态。');
-        });
-    }
-
-</script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js">
-    function loadHw() {
-        $.getJSON('/api/hardware', d => {
-            let h = '';
-            for (let [k,v] of Object.entries(d)) {
-                h += `<div class="list-item"><span style="color:var(--text-sec); font-size:14px; font-weight:500;">${k}</span><span style="font-weight:700; font-size:15px; text-align:right; max-width:60%; line-height:1.4;">${v}</span></div>`;
-            }
-            $('#hw-content').html(h);
-            hwLoaded = true;
-        });
-    }
-    
-    function initBench() {
-        $('#bench-result').hide();
-    }
-    
-    function runBenchmark(btn) {
-        let oldText = $(btn).text();
-        $(btn).text('正在疯狂计算中...').prop('disabled', true).css('opacity', 0.6);
-        $('#bench-result').hide();
-        
-        $.post('/api/benchmark', {}, res => {
-            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
-            $('#bench-score').text(res.score);
-            $('#bench-time').text(`耗时: ${res.time_ms} 毫秒`);
-            $('#bench-result').show();
-        }).fail(() => {
-            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
-            alert('跑分请求失败，请检查后端运行状态。');
-        });
-    }
-
-</script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <style>
         :root { --bg: #f2f2f7; --card: #ffffff; --text: #000; --text-sec: #8e8e93; --accent: #007aff; --danger: #ff3b30; --success: #34c759; --dock: rgba(255,255,255,0.85); }
         @media (prefers-color-scheme: dark) { :root { --bg: #000; --card: #1c1c1e; --text: #fff; --text-sec: #98989d; --dock: rgba(28,28,30,0.85); } }
@@ -261,16 +197,37 @@
         </div>
     </div>
 
-    <!-- 设备性能测试页面 -->
+            <!-- 设备性能测试页面 -->
     <div id="p-bench" class="page">
         <div class="subtitle">性能测试实验室 (Benchmark)</div>
-        <div class="card" style="text-align:center; padding:40px 20px; margin-top:10px;">
-            <div style="font-size:56px; margin-bottom:15px;">🚀</div>
-            <div style="font-weight:800; font-size:22px; margin-bottom:8px;">设备综合跑分计算</div>
-            <div style="color:var(--text-sec); font-size:14px; margin-bottom:30px; line-height:1.5;">通过执行密集的质数计算来压测 CPU 的算力与吞吐量，并对设备性能进行打分。</div>
-            <button class="btn" style="background:var(--accent); color:white; width:80%; max-width:280px; margin:0 auto; font-size:18px; padding:16px; border-radius:18px;" onclick="runBenchmark(this)">🔥 立即跑分</button>
-            <div id="bench-result" style="margin-top:30px; display:none;">
-                <div style="font-size:14px; color:var(--text-sec); margin-bottom:5px;">计算得分</div>
+        
+        <div class="grid">
+            <div class="card clickable ctrl-card" onclick="runBenchmark('cpu_prime', this)" style="text-align:center; padding:25px 15px;">
+                <div style="font-size:32px">🧠</div>
+                <div class="ctrl-card-title" style="margin-top:10px;">CPU 质数算力</div>
+                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">密集逻辑运算</div>
+            </div>
+            <div class="card clickable ctrl-card" onclick="runBenchmark('cpu_float', this)" style="text-align:center; padding:25px 15px;">
+                <div style="font-size:32px">🧮</div>
+                <div class="ctrl-card-title" style="margin-top:10px;">浮点矩阵运算</div>
+                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">三角函数与浮点数</div>
+            </div>
+            <div class="card clickable ctrl-card" onclick="runBenchmark('disk_io', this)" style="text-align:center; padding:25px 15px;">
+                <div style="font-size:32px">💾</div>
+                <div class="ctrl-card-title" style="margin-top:10px;">磁盘 I/O 读写</div>
+                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">50MB 顺序读写测试</div>
+            </div>
+            <div class="card clickable ctrl-card" onclick="runBenchmark('mem_bw', this)" style="text-align:center; padding:25px 15px;">
+                <div style="font-size:32px">🚀</div>
+                <div class="ctrl-card-title" style="margin-top:10px;">内存带宽吞吐</div>
+                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">大数组分配与反转</div>
+            </div>
+        </div>
+        
+        <div class="card" style="text-align:center; padding:30px 20px; margin-top:10px; display:none;" id="bench-result-card">
+            <div style="font-weight:800; font-size:18px; margin-bottom:15px;" id="bench-title">跑分结果</div>
+            <div id="bench-result">
+                <div style="font-size:14px; color:var(--text-sec); margin-bottom:5px;">计算综合得分</div>
                 <div style="font-weight:900; font-size:42px; color:var(--success); font-variant-numeric: tabular-nums;" id="bench-score">0</div>
                 <div style="font-size:12px; color:var(--text-sec); margin-top:8px;" id="bench-time"></div>
             </div>
@@ -1450,22 +1407,38 @@
     }
     
     function initBench() {
-        $('#bench-result').hide();
+        $('#bench-result-card').hide();
     }
     
-    function runBenchmark(btn) {
-        let oldText = $(btn).text();
-        $(btn).text('正在疯狂计算中...').prop('disabled', true).css('opacity', 0.6);
-        $('#bench-result').hide();
+    function runBenchmark(type, btn) {
+        let oldText = $(btn).find('.ctrl-card-title').text();
+        $(btn).find('.ctrl-card-title').text('计算中...').css('color', 'var(--accent)');
+        $(btn).css('opacity', 0.6).css('pointer-events', 'none');
+        $('#bench-result-card').hide();
         
-        $.post('/api/benchmark', {}, res => {
-            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
-            $('#bench-score').text(res.score);
-            $('#bench-time').text(`耗时: ${res.time_ms} 毫秒`);
-            $('#bench-result').show();
-        }).fail(() => {
-            $(btn).text(oldText).prop('disabled', false).css('opacity', 1);
-            alert('跑分请求失败，请检查后端运行状态。');
+        $.ajax({
+            url: '/api/benchmark',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({type: type}),
+            success: res => {
+                $(btn).find('.ctrl-card-title').text(oldText).css('color', '');
+                $(btn).css('opacity', 1).css('pointer-events', 'auto');
+                
+                $('#bench-title').text(oldText + ' 得分');
+                $('#bench-score').text(res.score);
+                $('#bench-time').text(`耗时: ${res.time_ms} 毫秒`);
+                $('#bench-result-card').fadeIn();
+                
+                $('html, body').animate({
+                    scrollTop: $("#bench-result-card").offset().top - 100
+                }, 500);
+            },
+            error: () => {
+                $(btn).find('.ctrl-card-title').text(oldText).css('color', '');
+                $(btn).css('opacity', 1).css('pointer-events', 'auto');
+                alert('跑分请求失败，请检查后端运行状态。');
+            }
         });
     }
 

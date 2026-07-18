@@ -887,6 +887,8 @@ def cron_delete():
 import platform
 import math
 import time
+import sys
+import os
 
 @app.route('/api/hardware')
 def api_hardware():
@@ -895,9 +897,20 @@ def api_hardware():
         info["OS System"] = platform.system() + " " + platform.release()
         info["Node Name"] = platform.node()
         info["Architecture"] = platform.machine()
+        info["Python Version"] = sys.version.split(' ')[0]
         
         mem = psutil.virtual_memory()
         info["Total Memory"] = f"{mem.total / (1024**3):.2f} GB"
+        
+        swap = psutil.swap_memory()
+        info["Swap Memory"] = f"{swap.total / (1024**3):.2f} GB"
+        
+        disk = psutil.disk_usage('/')
+        info["Root Disk Size"] = f"{disk.total / (1024**3):.2f} GB"
+        
+        boot_time = psutil.boot_time()
+        uptime_seconds = time.time() - boot_time
+        info["System Uptime"] = f"{uptime_seconds / 3600:.1f} Hours"
         
         if platform.system() == 'Linux':
             cpu_model = run_cmd("cat /proc/cpuinfo | grep 'model name' | head -n 1").split(':')[-1].strip()
@@ -914,25 +927,74 @@ def api_hardware():
     
     info["CPU Cores"] = f"{psutil.cpu_count(logical=False)} Physical / {psutil.cpu_count(logical=True)} Logical"
     
+    try:
+        freq = psutil.cpu_freq()
+        if freq and freq.max > 0:
+            info["Max CPU Freq"] = f"{freq.max:.0f} MHz"
+    except:
+        pass
+    
     return jsonify(info)
 
 @app.route('/api/benchmark', methods=['POST'])
 def api_benchmark():
-    start = time.time()
-    count = 0
-    limit = 50000
-    for num in range(2, limit):
-        is_prime = True
-        for i in range(2, int(math.sqrt(num)) + 1):
-            if num % i == 0:
-                is_prime = False
-                break
-        if is_prime:
-            count += 1
-            
-    duration = time.time() - start
-    score = int(1000 / (duration if duration > 0.001 else 0.001))
+    req = request.json or {}
+    bench_type = req.get('type', 'cpu_prime')
     
+    start = time.time()
+    score = 0
+    
+    if bench_type == 'cpu_prime':
+        count = 0
+        limit = 50000
+        for num in range(2, limit):
+            is_prime = True
+            for i in range(2, int(math.sqrt(num)) + 1):
+                if num % i == 0:
+                    is_prime = False
+                    break
+            if is_prime:
+                count += 1
+        duration = time.time() - start
+        score = int(1000 / (duration if duration > 0.001 else 0.001))
+        
+    elif bench_type == 'cpu_float':
+        val = 0.5
+        for _ in range(5000000):
+            val = math.sin(val) + math.cos(val)
+        duration = time.time() - start
+        score = int(2000 / (duration if duration > 0.001 else 0.001))
+        
+    elif bench_type == 'disk_io':
+        test_file = '/tmp/bench_test.dat'
+        data = b'0' * 1024 * 1024 * 10
+        try:
+            with open(test_file, 'wb') as f:
+                for _ in range(5):
+                    f.write(data)
+                    f.flush()
+                    os.fsync(f.fileno())
+            with open(test_file, 'rb') as f:
+                while f.read(1024 * 1024 * 10):
+                    pass
+            os.remove(test_file)
+        except:
+            pass
+        duration = time.time() - start
+        score = int(500 / (duration if duration > 0.001 else 0.001))
+        
+    elif bench_type == 'mem_bw':
+        arr = [0] * 5000000
+        for i in range(len(arr)):
+            arr[i] = i
+        arr.reverse()
+        duration = time.time() - start
+        score = int(800 / (duration if duration > 0.001 else 0.001))
+        
+    else:
+        duration = 0
+        score = 0
+        
     return jsonify({
         "score": score,
         "time_ms": int(duration * 1000)
