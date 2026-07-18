@@ -222,8 +222,12 @@
                 <div class="ctrl-card-title" style="margin-top:10px;">内存带宽吞吐</div>
                 <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">大数组分配与反转</div>
             </div>
+            <div class="card clickable ctrl-card" onclick="runBenchmark('openssl_aes', this)" style="text-align:center; padding:25px 15px;">
+                <div style="font-size:32px">🔐</div>
+                <div class="ctrl-card-title" style="margin-top:10px;">AES 加解密</div>
+                <div style="font-size:10px; color:var(--text-sec); margin-top:5px;">OpenSSL 性能压测</div>
+            </div>
         </div>
-        
         <div class="card" style="text-align:center; padding:30px 20px; margin-top:10px; display:none;" id="bench-result-card">
             <div style="font-weight:800; font-size:18px; margin-bottom:15px;" id="bench-title">跑分结果</div>
             <div id="bench-result">

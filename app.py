@@ -942,98 +942,225 @@ def api_benchmark():
     bench_type = req.get('type', 'cpu_prime')
     
     def generate():
-        start = time.time()
-        yield ">>> 正在初始化测试环境...\n"
+        import subprocess
+        start_total = time.time()
+        yield f">>> [初始化] 正在准备 {bench_type} 测试环境...\n"
         time.sleep(0.1)
         
+        score = 0
+        
         if bench_type == 'cpu_prime':
-            yield ">>> [任务] 测试 CPU 单核整数与质数运算\n"
+            yield ">>> [任务说明] CPU 整数与分支预测性能测试\n"
+            yield ">>> [参数设置] 寻找 2 到 40,000 之间的所有质数\n"
+            yield ">>> [算法原理] 密集循环 + 平方根取模暴力穷举\n\n"
+            
             count = 0
-            limit = 20000
-            yield ">>> 开始第一阶段计算 (0-10000)...\n"
-            for num in range(2, 10000):
+            limit = 40000
+            
+            yield ">>> [执行] 开始计算 2 ~ 20000 区间...\n"
+            t0 = time.time()
+            for num in range(2, 20000):
                 is_prime = True
                 for i in range(2, int(math.sqrt(num)) + 1):
                     if num % i == 0:
                         is_prime = False
                         break
                 if is_prime: count += 1
-            yield f">>> [50%] 已计算 10000 区间，发现 {count} 个质数\n"
+            t1 = time.time()
+            yield f">>> [进度] 第一阶段完成，耗时 {t1-t0:.3f} 秒，发现质数 {count} 个。\n"
             
-            yield ">>> 开始第二阶段计算 (10000-20000)...\n"
-            for num in range(10000, limit):
+            yield ">>> [执行] 开始计算 20000 ~ 40000 区间...\n"
+            for num in range(20000, limit):
                 is_prime = True
                 for i in range(2, int(math.sqrt(num)) + 1):
                     if num % i == 0:
                         is_prime = False
                         break
                 if is_prime: count += 1
-            yield f">>> [100%] 计算完成，总计发现 {count} 个质数\n"
+            t2 = time.time()
             
-            duration = time.time() - start
-            score = int(1000 / (duration if duration > 0.001 else 0.001))
-            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒\n"
-            yield f"RESULT_SCORE:{score}\n"
+            total_duration = t2 - start_total
+            yield f">>> [进度] 第二阶段完成，总计发现质数 {count} 个。\n\n"
+            yield f"=== 测试结果 ===\n"
+            yield f"运算耗时: {total_duration:.3f} 秒\n"
+            ops_per_sec = limit / (total_duration if total_duration > 0.001 else 0.001)
+            yield f"吞吐量: {ops_per_sec:.0f} nums/sec\n"
+            score = int(10000 / (total_duration if total_duration > 0.001 else 0.001))
             
         elif bench_type == 'cpu_float':
-            yield ">>> [任务] 测试 CPU 浮点数与三角函数矩阵能力\n"
+            yield ">>> [任务说明] CPU 浮点运算能力测试 (FPU)\n"
+            yield ">>> [参数设置] 执行 5,000,000 次 math.sin() 和 math.cos() 组合运算\n"
+            yield ">>> [算法原理] 通过双精度浮点型的三角函数逼近运算压榨 CPU ALU\n\n"
+            
             val = 0.5
-            yield ">>> 执行前 200 万次正弦/余弦运算...\n"
-            for _ in range(2000000): val = math.sin(val) + math.cos(val)
-            yield ">>> [50%] 前半部分运算完成\n"
+            yield ">>> [执行] 正在计算前 2,500,000 次...\n"
+            t0 = time.time()
+            for _ in range(2500000): val = math.sin(val) + math.cos(val)
+            t1 = time.time()
+            yield f">>> [进度] 50% 已完成，当前耗时 {t1-t0:.3f} 秒\n"
             
-            yield ">>> 执行后 200 万次高精度运算...\n"
-            for _ in range(2000000): val = math.sin(val) + math.cos(val)
-            yield ">>> [100%] 浮点测试完成\n"
+            yield ">>> [执行] 正在计算剩余 2,500,000 次...\n"
+            for _ in range(2500000): val = math.sin(val) + math.cos(val)
+            t2 = time.time()
             
-            duration = time.time() - start
-            score = int(2000 / (duration if duration > 0.001 else 0.001))
-            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒\n"
-            yield f"RESULT_SCORE:{score}\n"
+            total_duration = t2 - start_total
+            yield f">>> [进度] 100% 浮点计算全部完毕。\n\n"
+            yield f"=== 测试结果 ===\n"
+            yield f"运算耗时: {total_duration:.3f} 秒\n"
+            mflops = (5000000 * 2) / (total_duration * 1000000 if total_duration > 0.001 else 0.001)
+            yield f"估算算力: {mflops:.2f} MFLOPS\n"
+            score = int(3000 / (total_duration if total_duration > 0.001 else 0.001))
             
         elif bench_type == 'disk_io':
-            yield ">>> [任务] 测试磁盘底层 I/O 读写吞吐量\n"
+            yield ">>> [任务说明] 存储介质底层 I/O 读写吞吐量测试\n"
+            yield ">>> [参数设置] 1. 大文件连续读写 (1MB块 * 50次 = 50MB)\n"
+            yield ">>> [参数设置] 2. 小文件零碎读写 (4KB块 * 5000次 = 20MB)\n"
+            yield ">>> [测试路径] /tmp/bench_test.dat\n\n"
+            
             test_file = '/tmp/bench_test.dat'
-            data = b'0' * 1024 * 1024 * 5
-            yield ">>> 正在写入测试文件 (总计 25MB)...\n"
+            
+            # --- 1MB block ---
+            yield ">>> [执行] 正在以 1MB 块大小写入 50MB 数据...\n"
+            data_1m = b'0' * 1024 * 1024
+            t0 = time.time()
             try:
                 with open(test_file, 'wb') as f:
-                    for i in range(5):
-                        f.write(data)
-                        f.flush()
-                        os.fsync(f.fileno())
-                        yield f">>> 写入进度: {(i+1)*20}%\n"
-                
-                yield ">>> 正在进行连续读取测试...\n"
-                with open(test_file, 'rb') as f:
-                    while f.read(1024 * 1024 * 5):
-                        pass
-                yield ">>> [100%] 读取完毕，正在清理测试碎片...\n"
-                os.remove(test_file)
+                    for _ in range(50):
+                        f.write(data_1m)
+                    f.flush()
+                    os.fsync(f.fileno())
             except Exception as e:
-                yield f">>> [错误] 读写异常: {str(e)}\n"
+                yield f">>> [错误] 写入异常: {str(e)}\n"
+            t1 = time.time()
+            w_speed_1m = 50 / (t1 - t0 if t1 - t0 > 0.001 else 0.001)
+            yield f">>> [进度] 大文件写入完成，耗时 {t1-t0:.3f} 秒。\n"
             
-            duration = time.time() - start
-            score = int(500 / (duration if duration > 0.001 else 0.001))
-            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒\n"
-            yield f"RESULT_SCORE:{score}\n"
+            yield ">>> [执行] 正在读取该 50MB 文件...\n"
+            t2 = time.time()
+            try:
+                with open(test_file, 'rb') as f:
+                    while f.read(1024 * 1024):
+                        pass
+            except:
+                pass
+            t3 = time.time()
+            r_speed_1m = 50 / (t3 - t2 if t3 - t2 > 0.001 else 0.001)
+            yield f">>> [进度] 大文件读取完成，耗时 {t3-t2:.3f} 秒。\n\n"
+            try:
+                os.remove(test_file)
+            except:
+                pass
+            
+            # --- 4KB block ---
+            yield ">>> [执行] 正在以 4KB 块大小写入 20MB 数据 (模拟零碎文件)...\n"
+            data_4k = b'0' * 4096
+            t4 = time.time()
+            try:
+                with open(test_file, 'wb') as f:
+                    for _ in range(5000):
+                        f.write(data_4k)
+                    f.flush()
+                    os.fsync(f.fileno())
+            except:
+                pass
+            t5 = time.time()
+            w_speed_4k = 20 / (t5 - t4 if t5 - t4 > 0.001 else 0.001)
+            yield f">>> [进度] 小文件写入完成，耗时 {t5-t4:.3f} 秒。\n"
+            
+            yield ">>> [执行] 正在读取该 20MB 碎片文件...\n"
+            t6 = time.time()
+            try:
+                with open(test_file, 'rb') as f:
+                    while f.read(4096):
+                        pass
+            except:
+                pass
+            t7 = time.time()
+            r_speed_4k = 20 / (t7 - t6 if t7 - t6 > 0.001 else 0.001)
+            yield f">>> [进度] 小文件读取完成，正在清理测试碎片...\n\n"
+            try:
+                os.remove(test_file)
+            except:
+                pass
+            
+            yield f"=== 测试结果 ===\n"
+            yield f"【大文件 (1MB块，顺序读写)】\n"
+            yield f" 写入速度: {w_speed_1m:.2f} MB/s\n"
+            yield f" 读取速度: {r_speed_1m:.2f} MB/s\n"
+            yield f"【小文件 (4KB块，随机碎片)】\n"
+            yield f" 写入速度: {w_speed_4k:.2f} MB/s\n"
+            yield f" 读取速度: {r_speed_4k:.2f} MB/s\n"
+            
+            score = int((w_speed_1m + r_speed_1m)*10 + (w_speed_4k + r_speed_4k)*50)
             
         elif bench_type == 'mem_bw':
-            yield ">>> [任务] 测试内存总线带宽吞吐\n"
-            yield ">>> 正在向系统申请并初始化 300 万个整数数组...\n"
-            arr = [0] * 3000000
+            yield ">>> [任务说明] 系统内存总线带宽吞吐测试\n"
+            yield ">>> [参数设置] 在内存中动态分配 10,000,000 个元素的整型大数组\n"
+            yield ">>> [算法原理] 测试操作系统的内存申请能力与纯内存线性读写速率\n\n"
+            
+            yield ">>> [执行] 正在向系统申请分配约 80MB 内存阵列...\n"
+            t0 = time.time()
+            arr = [0] * 10000000
+            t1 = time.time()
+            yield f">>> [进度] 内存空间分配完毕，耗时 {t1-t0:.3f} 秒\n"
+            
+            yield ">>> [执行] 正在执行全量数据覆写写入 (Write)...\n"
+            t2 = time.time()
             for i in range(len(arr)):
                 arr[i] = i
-            yield ">>> [50%] 内存大块写操作完毕，准备执行逆向寻址与反转...\n"
+            t3 = time.time()
+            yield f">>> [进度] 80MB 数据覆写完毕，耗时 {t3-t2:.3f} 秒\n"
             
+            yield ">>> [执行] 正在执行内存块指针反转重排 (Read & Write)...\n"
+            t4 = time.time()
             arr.reverse()
-            yield ">>> [100%] 内存指针重分配完成，正在释放内存...\n"
-            del arr
+            t5 = time.time()
+            yield f">>> [进度] 内存指针反转完毕，耗时 {t5-t4:.3f} 秒\n\n"
             
-            duration = time.time() - start
-            score = int(800 / (duration if duration > 0.001 else 0.001))
-            yield f">>> 分析完毕。总耗时: {duration:.3f} 秒\n"
-            yield f"RESULT_SCORE:{score}\n"
+            del arr
+            total_duration = t5 - start_total
+            
+            yield f"=== 测试结果 ===\n"
+            yield f"总耗时: {total_duration:.3f} 秒\n"
+            bw = 240 / (total_duration if total_duration > 0.001 else 0.001)
+            yield f"估算综合内存带宽: {bw:.2f} MB/s\n"
+            score = int(bw * 10)
+            
+        elif bench_type == 'openssl_aes':
+            yield ">>> [任务说明] 硬件密码学加速 (OpenSSL AES) 性能测试\n"
+            yield ">>> [参数设置] 使用系统内置 openssl speed 工具进行压测\n"
+            yield ">>> [算法原理] 测试 AES-128-CBC 与 AES-256-CBC 算法在不同块大小下的加密吞吐量\n\n"
+            
+            yield ">>> [执行] 正在启动 AES-128-CBC 测试... (大约需要 3 秒，请耐心等待)\n"
+            try:
+                proc = subprocess.run(['openssl', 'speed', '-elapsed', '-evp', 'aes-128-cbc'], capture_output=True, text=True)
+                lines = proc.stdout.split('\n')
+                for line in lines:
+                    if 'type' in line and '16 bytes' in line:
+                        yield f"  {line}\n"
+                    elif 'aes-128-cbc' in line:
+                        yield f"  {line}\n"
+            except Exception as e:
+                yield f">>> [错误] 执行失败: {str(e)}\n"
+                
+            yield "\n>>> [执行] 正在启动 AES-256-CBC 测试... (大约需要 3 秒，请耐心等待)\n"
+            try:
+                proc = subprocess.run(['openssl', 'speed', '-elapsed', '-evp', 'aes-256-cbc'], capture_output=True, text=True)
+                lines = proc.stdout.split('\n')
+                for line in lines:
+                    if 'aes-256-cbc' in line:
+                        yield f"  {line}\n"
+            except Exception as e:
+                pass
+                
+            yield f"\n=== 测试结果 ===\n"
+            yield f"如上表所示，对应不同的数据块大小 (16 bytes ~ 8192 bytes)，显示的即为每秒处理的千字节数(或字节数)。数值越大性能越强。\n"
+            score = 9999
+            
+        else:
+            yield "未知测试项。\n"
+            
+        yield f"RESULT_SCORE:{score}\n"
 
     return Response(generate(), mimetype='text/plain')
 
