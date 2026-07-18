@@ -1131,21 +1131,21 @@ def api_benchmark():
             yield ">>> [参数设置] 使用系统内置 openssl speed 工具进行压测\n"
             yield ">>> [算法原理] 测试 AES-128-CBC 与 AES-256-CBC 算法在不同块大小下的加密吞吐量\n\n"
             
-            yield ">>> [执行] 正在启动 AES-128-CBC 测试... (大约需要 3 秒，请耐心等待)\n"
+            yield ">>> [执行] 正在启动 AES-128-CBC 测试... (大约需要 6 秒，请耐心等待)\n"
             try:
-                proc = subprocess.run(['openssl', 'speed', '-elapsed', '-evp', 'aes-128-cbc'], capture_output=True, text=True)
+                proc = subprocess.run(['openssl', 'speed', '-seconds', '1', '-elapsed', '-evp', 'aes-128-cbc'], capture_output=True, text=True)
                 lines = proc.stdout.split('\n')
                 for line in lines:
                     if 'type' in line and '16 bytes' in line:
                         yield f"  {line}\n"
-                    elif 'aes-128-cbc' in line:
+                    elif 'aes-128-cbc' in line.lower():
                         yield f"  {line}\n"
             except Exception as e:
                 yield f">>> [错误] 执行失败: {str(e)}\n"
                 
-            yield "\n>>> [执行] 正在启动 AES-256-CBC 测试... (大约需要 3 秒，请耐心等待)\n"
+            yield "\n>>> [执行] 正在启动 AES-256-CBC 测试... (大约需要 6 秒，请耐心等待)\n"
             try:
-                proc = subprocess.run(['openssl', 'speed', '-elapsed', '-evp', 'aes-256-cbc'], capture_output=True, text=True)
+                proc = subprocess.run(['openssl', 'speed', '-seconds', '1', '-elapsed', '-evp', 'aes-256-cbc'], capture_output=True, text=True)
                 lines = proc.stdout.split('\n')
                 for line in lines:
                     if 'aes-256-cbc' in line:
