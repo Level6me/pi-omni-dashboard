@@ -1,0 +1,10 @@
+
+# Logs & Temporary Files
+logs/
+tmp/
+.cache/
+__pycache__/
+*.tmp
+.DS_Store
+node_modules/
+*.log
