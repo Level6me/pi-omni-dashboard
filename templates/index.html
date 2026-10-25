@@ -397,6 +397,10 @@
     }
     
     // 定时任务加载
+    // HTML 转义工具，防止任务名/命令/文件名注入页面结构
+    const escHtml = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    // 生成可嵌入 onclick 属性的 JS 字符串字面量（JSON 编码 + HTML 属性转义）
+    const jsArg = s => escHtml(JSON.stringify(String(s ?? '')));
     function loadCron() {
         $.getJSON('/api/cron/list', d => {
             // Cron jobs
@@ -410,17 +414,17 @@
                         <div class="cron-icon">${icon}</div>
                         <div class="cron-info">
                             <div class="cron-meta">
-                                <span class="cron-name">${j.name || '未命名任务'}</span>
+                                <span class="cron-name">${escHtml(j.name || '未命名任务')}</span>
                                 <span class="cron-type-badge">cron</span>
                             </div>
-                            <div class="cron-time">${j.time_desc}</div>
-                            <div style="display:flex;"><span class="cron-cmd" title="${j.command}">${j.command}</span></div>
+                            <div class="cron-time">${escHtml(j.time_desc)}</div>
+                            <div style="display:flex;"><span class="cron-cmd" title="${escHtml(j.command)}">${escHtml(j.command)}</span></div>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
-                            <button onclick="runCronOnce('${j.command.replace(/'/g, "\\'")}')" title="立即执行一次" style="border:none; background:none; color:var(--success); font-size:16px; cursor:pointer; padding: 4px;">▶</button>
-                            <button onclick="deleteCron('${j.id}')" title="删除任务" style="border:none; background:none; color:var(--danger); font-size:16px; cursor:pointer; padding: 4px;">🗑️</button>
+                            <button onclick="runCronOnce(this.dataset.cmd)" data-cmd="${escHtml(j.command)}" title="立即执行一次" style="border:none; background:none; color:var(--success); font-size:16px; cursor:pointer; padding: 4px;">▶</button>
+                            <button onclick="deleteCron('${escHtml(j.id)}')" title="删除任务" style="border:none; background:none; color:var(--danger); font-size:16px; cursor:pointer; padding: 4px;">🗑️</button>
                             <label class="toggle-switch" style="transform: scale(0.85);">
-                                <input type="checkbox" ${j.enabled?'checked':''} onchange="toggleCron('${j.id}', this.checked)">
+                                <input type="checkbox" ${j.enabled?'checked':''} onchange="toggleCron('${escHtml(j.id)}', this.checked)">
                                 <span class="slider"></span>
                             </label>
                         </div>
@@ -440,15 +444,15 @@
                         <div class="cron-icon">${icon}</div>
                         <div class="cron-info">
                             <div class="cron-meta">
-                                <span class="cron-name">${j.name}</span>
+                                <span class="cron-name">${escHtml(j.name)}</span>
                                 <span class="cron-type-badge timer">timer</span>
                             </div>
-                            <div class="cron-time">${j.time_desc}</div>
-                            <div style="display:flex;"><span class="cron-cmd" title="${j.command}">${j.command}</span></div>
+                            <div class="cron-time">${escHtml(j.time_desc)}</div>
+                            <div style="display:flex;"><span class="cron-cmd" title="${escHtml(j.command)}">${escHtml(j.command)}</span></div>
                         </div>
                         <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
                             <label class="toggle-switch" style="transform: scale(0.85);">
-                                <input type="checkbox" ${j.enabled?'checked':''} onchange="toggleCron('${j.id}', this.checked)">
+                                <input type="checkbox" ${j.enabled?'checked':''} onchange="toggleCron('${escHtml(j.id)}', this.checked)">
                                 <span class="slider"></span>
                             </label>
                         </div>
@@ -1038,31 +1042,31 @@
                     d.files.forEach(f => {
                         let icon = f.is_dir ? '📁' : '📄';
                         let sizeStr = f.is_dir ? '' : fmtFileSize(f.size);
-                        let action = f.is_dir ? `loadFiles('${currentFilePath ? currentFilePath + '/' + f.name : f.name}')` : `openFileEditor('${currentFilePath ? currentFilePath + '/' + f.name : f.name}', '${f.name}')`;
-                        
-                        let pathForActions = currentFilePath ? currentFilePath + '/' + f.name : f.name;
-                        let downloadBtn = f.is_dir ? '' : `<button onclick="event.stopPropagation(); downloadFile('${pathForActions}')" title="下载" style="border:none; background:none; color:var(--success); font-size:16px; cursor:pointer; padding: 4px;">📥</button>`;
-                        
+                        let relName = currentFilePath ? currentFilePath + '/' + f.name : f.name;
+                        let action = f.is_dir ? `loadFiles(${jsArg(relName)})` : `openFileEditor(${jsArg(relName)}, ${jsArg(f.name)})`;
+
+                        let downloadBtn = f.is_dir ? '' : `<button onclick="event.stopPropagation(); downloadFile(${jsArg(relName)})" title="下载" style="border:none; background:none; color:var(--success); font-size:16px; cursor:pointer; padding: 4px;">📥</button>`;
+
                         h += `<div class="list-item clickable" onclick="${action}">
                             <div style="flex: 1; min-width: 0;">
                                 <div style="display:flex; align-items:center; gap:8px;">
                                     <span>${icon}</span>
-                                    <span style="font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${f.name}</span>
+                                    <span style="font-weight:600; font-size:14px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escHtml(f.name)}</span>
                                     <span style="font-size:11px; color:var(--text-sec); font-weight:500; margin-left:6px;">${sizeStr}</span>
                                 </div>
-                                <div style="font-size:10px; color:var(--text-sec); margin-top:2px;">${f.mtime}</div>
+                                <div style="font-size:10px; color:var(--text-sec); margin-top:2px;">${escHtml(f.mtime)}</div>
                             </div>
                             <div style="display:flex; align-items:center; gap:10px;">
                                 ${downloadBtn}
-                                <button onclick="event.stopPropagation(); renameFileOrDir('${f.name}')" title="重命名" style="border:none; background:none; color:var(--accent); font-size:16px; cursor:pointer; padding: 4px;">✏️</button>
-                                <button onclick="event.stopPropagation(); deleteFileOrDir('${f.name}')" title="删除" style="border:none; background:none; color:var(--danger); font-size:16px; cursor:pointer; padding: 4px;">🗑️</button>
+                                <button onclick="event.stopPropagation(); renameFileOrDir(${jsArg(f.name)})" title="重命名" style="border:none; background:none; color:var(--accent); font-size:16px; cursor:pointer; padding: 4px;">✏️</button>
+                                <button onclick="event.stopPropagation(); deleteFileOrDir(${jsArg(f.name)})" title="删除" style="border:none; background:none; color:var(--danger); font-size:16px; cursor:pointer; padding: 4px;">🗑️</button>
                             </div>
                         </div>`;
                     });
                 }
                 $('#file-list-box').html(h);
             } else {
-                $('#file-list-box').html(`<div style="padding:20px;text-align:center;color:var(--danger)">加载失败: ${d.msg}</div>`);
+                $('#file-list-box').html(`<div style="padding:20px;text-align:center;color:var(--danger)">加载失败: ${escHtml(d.msg)}</div>`);
             }
         });
     }

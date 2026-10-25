@@ -202,11 +202,15 @@ def get_safe_path(rel_path):
     if not rel_path:
         return FILE_ROOT
     abs_path = os.path.abspath(os.path.join(FILE_ROOT, rel_path))
-    if abs_path.startswith(FILE_ROOT):
+    # 严格限制在用户主目录内（前缀比较需带路径分隔符，防止 /home/pi 匹配到 /home/pi-xxx 等同级目录）
+    if abs_path == FILE_ROOT or abs_path.startswith(FILE_ROOT + os.sep):
         return abs_path
     return FILE_ROOT
 
 # --- 定时任务管理 ---
+
+# 串行化 crontab 的读改写操作，防止并发请求相互覆盖
+cron_lock = threading.Lock()
 
 def parse_cron_desc(line):
     """解析 cron 表达式为中文描述"""
@@ -217,30 +221,36 @@ def parse_cron_desc(line):
     
     # 构建时间描述
     time_str = ""
-    if minute == '*' and hour == '*':
-        time_str = "每分钟"
-    elif hour == '*':
-        time_str = f"每小时第 {minute} 分"
-    elif minute == '*':
-        time_str = f"每小时"
-    else:
-        time_str = f"{int(hour):02d}:{int(minute):02d}"
-    
+    try:
+        if minute == '*' and hour == '*':
+            time_str = "每分钟"
+        elif hour == '*':
+            time_str = f"每小时第 {minute} 分"
+        elif minute == '*':
+            time_str = f"每小时"
+        else:
+            time_str = f"{int(hour):02d}:{int(minute):02d}"
+    except:
+        time_str = f"时间 {hour}:{minute}"
+
     # 频率描述
     freq = ""
-    if dow != '*':
-        dow_map = {'0':'周日','1':'周一','2':'周二','3':'周三','4':'周四','5':'周五','6':'周六'}
-        if '-' in dow:
-            start, end = dow.split('-')
-            freq = f" 每周 {dow_map.get(start, start)}~{dow_map.get(end, end)}"
+    try:
+        if dow != '*':
+            dow_map = {'0':'周日','1':'周一','2':'周二','3':'周三','4':'周四','5':'周五','6':'周六'}
+            if '-' in dow:
+                start, end = dow.split('-')
+                freq = f" 每周 {dow_map.get(start, start)}~{dow_map.get(end, end)}"
+            else:
+                freq = f" 每周{''.join([dow_map.get(d, d) for d in dow.split(',')])}"
+        elif dom != '*':
+            freq = f" 每月 {dom} 日"
+        elif month != '*':
+            freq = f" 每年 {int(month)} 月"
         else:
-            freq = f" 每周{''.join([dow_map.get(d, d) for d in dow.split(',')])}"
-    elif dom != '*':
-        freq = f" 每月 {dom} 日"
-    elif month != '*':
-        freq = f" 每年 {int(month)} 月"
-    else:
-        freq = " 每天"
+            freq = " 每天"
+    except:
+        freq = ""
     
     # 获取命令简称
     cmd_short = cmd.split('/')[-1].split()[0] if cmd else ""
@@ -651,7 +661,10 @@ def rename_file_or_dir():
     new_name = d.get('new_name', '')
     if not old_name or not new_name:
         return jsonify({"success": False, "msg": "名称不能为空"})
-    
+    # 源名称必须是单一路径分量，防止穿越到主目录之外
+    if os.path.basename(old_name) != old_name or old_name in ('.', '..'):
+        return jsonify({"success": False, "msg": "无效的文件名称"})
+
     target_dir = get_safe_path(path_param)
     old_path = os.path.join(target_dir, old_name)
     new_path = os.path.join(target_dir, secure_filename(new_name))
@@ -669,7 +682,10 @@ def delete_file_or_dir():
     name = d.get('name', '')
     if not name:
         return jsonify({"success": False, "msg": "名称不能为空"})
-    
+    # 名称必须是单一路径分量，防止借助 .. 删除主目录之外的任意文件
+    if os.path.basename(name) != name or name in ('.', '..'):
+        return jsonify({"success": False, "msg": "无效的文件名称"})
+
     target_dir = get_safe_path(path_param)
     target_path = os.path.join(target_dir, name)
     try:
@@ -833,19 +849,23 @@ def cron_add():
     name = d.get('name', '')
     if not schedule or not cmd:
         return jsonify({"success": False, "msg": "时间表达式与执行指令不能为空"})
+    # 拒绝换行符，防止借单条记录注入多条 crontab 条目
+    if '\n' in schedule or '\r' in schedule or '\n' in cmd or '\r' in cmd or '\n' in name or '\r' in name:
+        return jsonify({"success": False, "msg": "内容不能包含换行符"})
     try:
         if len(schedule.split()) < 5:
             return jsonify({"success": False, "msg": "Cron 时间表达式格式无效"})
-        raw = run_cmd("sudo crontab -l 2>/dev/null")
-        lines = raw.split('\n') if raw else []
-        if lines and not lines[-1].strip():
-            lines.pop()
-        if name:
-            lines.append(f"# {name}")
-        lines.append(f"{schedule} {cmd}")
-        new_cron = '\n'.join(lines) + '\n'
-        proc = subprocess.Popen(['sudo', 'crontab', '-'], stdin=subprocess.PIPE, text=True)
-        proc.communicate(input=new_cron)
+        with cron_lock:
+            raw = run_cmd("sudo crontab -l 2>/dev/null")
+            lines = raw.split('\n') if raw else []
+            if lines and not lines[-1].strip():
+                lines.pop()
+            if name:
+                lines.append(f"# {name}")
+            lines.append(f"{schedule} {cmd}")
+            new_cron = '\n'.join(lines) + '\n'
+            proc = subprocess.Popen(['sudo', 'crontab', '-'], stdin=subprocess.PIPE, text=True)
+            proc.communicate(input=new_cron)
         return jsonify({"success": True, "msg": "新定时任务添加成功"})
     except Exception as e:
         return jsonify({"success": False, "msg": str(e)})
